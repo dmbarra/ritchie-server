@@ -3,26 +3,23 @@ package formulas
 import (
 	"log"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 
 	"ritchie-server/server"
-	"ritchie-server/server/tm"
 )
 
 type Handler struct {
-	Config        server.Config
-	Authorization server.Constraints
+	config        server.Config
+	authorization server.Constraints
+	provider      server.ProviderHandler
 }
 
-
 const (
-	repoNameHeader = "x-repo-name"
+	repoNameHeader      = "x-repo-name"
 	authorizationHeader = "Authorization"
 )
 
-func NewConfigHandler(config server.Config, auth server.Constraints) server.DefaultHandler {
-	return Handler{Config: config, Authorization: auth}
+func NewConfigHandler(c server.Config, a server.Constraints, p server.ProviderHandler) server.DefaultHandler {
+	return Handler{config: c, authorization: a, provider: p}
 }
 
 func (lh Handler) Handler() http.HandlerFunc {
@@ -38,19 +35,19 @@ func (lh Handler) Handler() http.HandlerFunc {
 
 func (lh Handler) processGet(w http.ResponseWriter, r *http.Request) {
 	org := r.Header.Get(server.OrganizationHeader)
-	repos, err := lh.Config.ReadRepositoryConfig(org)
+	repos, err := lh.config.ReadRepositoryConfig(org)
 	if err != nil {
 		log.Printf("Error while processing %v's repository configuration: %v", org, err)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	if repos == nil {
-		log.Println("No repository configDummy found")
+		log.Println("No repository config found")
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	repoName := r.Header.Get(repoNameHeader)
-	repo, err := tm.FindRepo(repos, repoName)
+	repo, err := lh.provider.FindRepo(repos, repoName)
 	if err != nil {
 		log.Printf("no repo for org %s, with name %s, error: %v", org, repoName, err)
 		w.WriteHeader(http.StatusNotFound)
@@ -58,23 +55,16 @@ func (lh Handler) processGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bt := r.Header.Get(authorizationHeader)
-	allow, err := tm.FormulaAllow(lh.Authorization, r.URL.Path, bt, org, repo)
+	buf, err := lh.provider.FilesFormulasAllow(r.URL.Path, bt, org, repo)
 	if err != nil {
 		log.Printf("error try allow access: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	if !allow {
-		log.Printf("Not allow access path: %s", r.URL.Path)
-		w.WriteHeader(http.StatusUnauthorized)
-		return
+	_, err = w.Write(buf)
+	if err != nil {
+		log.Printf("Failed to path: %s, error: %v", r.URL.Path, err)
+		w.WriteHeader(http.StatusInternalServerError)
 	}
-	u, _ := url.Parse(repo.Remote)
-	proxy := httputil.NewSingleHostReverseProxy(u)
-	r.URL.Host = u.Host
-	r.URL.Scheme = u.Scheme
-	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
-	r.Host = u.Host
-	proxy.ServeHTTP(w, r)
 }

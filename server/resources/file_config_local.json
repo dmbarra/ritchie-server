@@ -1,106 +1,122 @@
 {
-  "zup": {
-    "keycloak": {
-      "url": "http://localhost:8080",
-      "realm": "ritchie",
-      "clientId": "user-login",
-      "clientSecret": "user-login"
-    },
-    "cliVersionPath": {
-      "provider": "s3",
-      "url": "http://localhost:8882/s3-version-mock"
-    },
-    "repositories":
-     [
-       {
-         "name": "commons",
-         "priority": 0,
-         "treePath": "/tree/tree.json",
-         "remote" : "http://localhost:8882",
-         "serverUrl" : "http://localhost:3000",
-         "replaceRepoUrl" : "http://localhost:3000/formulas"
-       },
-       {
-         "name": "zup",
-         "priority": 1,
-         "treePath": "/tree/tree-zup.json",
-         "remote" : "http://localhost:8882",
-         "serverUrl" : "http://localhost:3000",
-         "replaceRepoUrl" : "http://localhost:3000/formulas"
-       }
-     ],
-
-    "oauth" :{
-      "url" : "http://localhost:8080/auth/realms/ritchie",
-      "clientId" : "oauth"
-    },
-    "credentials": {
-      "github": [
-        {
-          "field": "username",
-          "type": "text"
+    "zup": {
+        "keycloak": {
+            "url": "http://localhost:8080",
+            "realm": "ritchie",
+            "clientId": "user-login",
+            "clientSecret": "user-login"
         },
-        {
-          "field": "token",
-          "type": "password"
-        }
-      ],
-      "gitlab": [
-        {
-          "field": "username",
-          "type": "text"
+        "cliVersionPath": {
+            "provider": "s3",
+            "url": "http://localhost:8882/s3-version-mock"
         },
-        {
-          "field": "token",
-          "type": "password"
-        }
-      ],
-      "aws": [
-        {
-          "field": "accessKeyId",
-          "type": "text"
+        "repositories": [
+            {
+                "name": "commons",
+                "priority": 0,
+                "treePath": "/tree/tree.json",
+                "serverUrl": "http://localhost:3000",
+                "replaceRepoUrl": "http://localhost:3000/formulas",
+                "provider": {
+                    "type": "HTTP",
+                    "remote": "http://localhost:8882"
+                }
+            },
+            {
+                "name": "zup",
+                "priority": 1,
+                "treePath": "/tree/tree-zup.json",
+                "serverUrl": "http://localhost:3000",
+                "replaceRepoUrl": "http://localhost:3000/formulas",
+                "provider": {
+                    "type": "HTTP",
+                    "remote": "http://localhost:8882"
+                }
+            },
+            {
+                "name": "test-repo",
+                "priority": 2,
+                "treePath": "/tree/tree.json",
+                "serverUrl" : "http://localhost:3000",
+                "replaceRepoUrl" : "http://localhost:3000/formulas",
+                "provider": {
+                    "type": "S3",
+                    "bucket": "local",
+                    "region" : "sa-east-1"
+                }
+            }
+        ],
+        "oauth": {
+            "url": "http://localhost:8080/auth/realms/ritchie",
+            "clientId": "oauth"
         },
-        {
-          "field": "secretAccessKey",
-          "type": "password"
+        "credentials": {
+            "github": [
+                {
+                    "field": "username",
+                    "type": "text"
+                },
+                {
+                    "field": "token",
+                    "type": "password"
+                }
+            ],
+            "gitlab": [
+                {
+                    "field": "username",
+                    "type": "text"
+                },
+                {
+                    "field": "token",
+                    "type": "password"
+                }
+            ],
+            "aws": [
+                {
+                    "field": "accessKeyId",
+                    "type": "text"
+                },
+                {
+                    "field": "secretAccessKey",
+                    "type": "password"
+                }
+            ],
+            "darwin": [
+                {
+                    "field": "username",
+                    "type": "text"
+                },
+                {
+                    "field": "password",
+                    "type": "password"
+                }
+            ],
+            "jenkins": [
+                {
+                    "field": "username",
+                    "type": "text"
+                },
+                {
+                    "field": "token",
+                    "type": "password"
+                }
+            ],
+            "email-zup": [
+                {
+                    "field": "email",
+                    "type": "text"
+                },
+                {
+                    "field": "token",
+                    "type": "password"
+                }
+            ],
+            "kubeconfig": [
+                {
+                    "field": "base64config",
+                    "type": "text"
+                }
+            ]
         }
-      ],
-      "darwin": [
-        {
-          "field": "username",
-          "type": "text"
-        },
-        {
-          "field": "password",
-          "type": "password"
-        }
-      ],
-      "jenkins": [
-        {
-          "field": "username",
-          "type": "text"
-        },
-        {
-          "field": "token",
-          "type": "password"
-        }
-      ],
-      "email-zup": [
-        {
-          "field": "email",
-          "type": "text"
-        },
-        {
-          "field": "token",
-          "type": "password"
-        }
-      ],
-      "kubeconfig": [
-        {
-          "field": "base64config",
-          "type" : "text"
-        }
-      ]
     }
-  }
 }

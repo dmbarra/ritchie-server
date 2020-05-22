@@ -43,12 +43,13 @@ type cache struct {
 
 func TestHandler_Handler(t *testing.T) {
 	type fields struct {
-		config   server.Config
-		auth     server.Constraints
-		method   string
-		path     string
-		org      string
-		repoName string
+		config    server.Config
+		auth      server.Constraints
+		providerH server.ProviderHandler
+		method    string
+		path      string
+		org       string
+		repoName  string
 	}
 	tests := []struct {
 		name   string
@@ -56,13 +57,27 @@ func TestHandler_Handler(t *testing.T) {
 		want   http.HandlerFunc
 	}{
 		{
-			name:   "allow config",
+			name: "allow config",
 			fields: fields{
-				config:   mock.DummyConfig(),
+				config: mock.DummyConfig(),
 				auth: mock.AuthorizationMock{
 					B: true,
 					E: nil,
 					R: []string{"USER"},
+				},
+				providerH: mock.ProviderHandlerMock{
+					R: server.Repository{
+						Name:           "commons",
+						Priority:       0,
+						TreePath:       "/tree/tree.json",
+						ServerUrl:      "http://localhost:3000",
+						ReplaceRepoUrl: "http://localhost:3000/formulas",
+						Provider: server.Provider{
+							Type:   "HTTP",
+							Remote: "http://localhost:8882",
+						},
+					},
+					B: configJsonWantByte(),
 				},
 				method:   http.MethodGet,
 				path:     "/formulas/aws/terraform/config.json",
@@ -82,29 +97,9 @@ func TestHandler_Handler(t *testing.T) {
 			}(),
 		},
 		{
-			name:   "not allow config",
+			name: "not found post",
 			fields: fields{
-				config:   mock.DummyConfig(),
-				auth: mock.AuthorizationMock{
-					B: true,
-					E: nil,
-					R: []string{"USER"},
-				},
-				method:   http.MethodGet,
-				path:     "/formulas/kafka/config.json",
-				org:      "zup",
-				repoName: "commons",
-			},
-			want: func() http.HandlerFunc {
-				return func(w http.ResponseWriter, r *http.Request) {
-					w.WriteHeader(http.StatusUnauthorized)
-				}
-			}(),
-		},
-		{
-			name:   "not found post",
-			fields: fields{
-				config:   mock.DummyConfig(),
+				config: mock.DummyConfig(),
 				auth: mock.AuthorizationMock{
 					B: true,
 					E: nil,
@@ -170,6 +165,9 @@ func TestHandler_Handler(t *testing.T) {
 					E: nil,
 					R: []string{"USER"},
 				},
+				providerH: mock.ProviderHandlerMock{
+					ER: errors.New("error"),
+				},
 				path:     "/formulas/aws/terraform/config.json",
 				method:   http.MethodGet,
 				org:      "zup",
@@ -182,13 +180,16 @@ func TestHandler_Handler(t *testing.T) {
 			}(),
 		},
 		{
-			name: "internal error",
+			name: "internal error load files",
 			fields: fields{
 				config: mock.DummyConfig(),
 				auth: mock.AuthorizationMock{
 					B: true,
 					E: errors.New("error"),
 					R: []string{"USER"},
+				},
+				providerH: mock.ProviderHandlerMock{
+					ET: errors.New("error"),
 				},
 				path:     "/formulas/aws/terraform/config.json",
 				method:   http.MethodGet,
@@ -204,7 +205,7 @@ func TestHandler_Handler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mu := NewConfigHandler(tt.fields.config, tt.fields.auth)
+			mu := NewConfigHandler(tt.fields.config, tt.fields.auth, tt.fields.providerH)
 
 			r, _ := http.NewRequest(tt.fields.method, tt.fields.path, bytes.NewReader([]byte{}))
 
@@ -243,14 +244,14 @@ func TestHandler_Handler(t *testing.T) {
 
 func configEmptyRepo() server.Config {
 	return config.Configuration{
-		Configs:             map[string]*server.ConfigFile{
-			"zup" : {},
+		Configs: map[string]*server.ConfigFile{
+			"zup": {},
 		},
 	}
 }
 
-func configJsonWant() configDummy {
-	cj :=  `{
+func configJsonWantByte() []byte {
+	return []byte( `{
         "description": "Apply terraform on AWS",
         "inputs": [
           {
@@ -291,9 +292,12 @@ func configJsonWant() configDummy {
             "type": "CREDENTIAL_AWS_SECRETACCESSKEY"
           }
         ]
-      }`
+      }`)
+}
+
+func configJsonWant() configDummy {
 	var c configDummy
-	if err := json.Unmarshal([]byte(cj), &c); err != nil {
+	if err := json.Unmarshal(configJsonWantByte(), &c); err != nil {
 		log.Fatal("Error Unmarshal")
 	}
 	return c

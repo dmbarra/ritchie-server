@@ -6,12 +6,12 @@ import (
 	"net/http"
 
 	"ritchie-server/server"
-	"ritchie-server/server/tm"
 )
 
 type Handler struct {
-	Config        server.Config
-	Authorization server.Constraints
+	config        server.Config
+	authorization server.Constraints
+	provider      server.ProviderHandler
 }
 
 const (
@@ -19,8 +19,12 @@ const (
 	authorizationHeader = "Authorization"
 )
 
-func NewConfigHandler(config server.Config, auth server.Constraints) server.DefaultHandler {
-	return Handler{Config: config, Authorization: auth}
+func NewConfigHandler(c server.Config, a server.Constraints, p server.ProviderHandler) server.DefaultHandler {
+	return Handler{
+		config:        c,
+		authorization: a,
+		provider:      p,
+	}
 }
 
 func (lh Handler) Handler() http.HandlerFunc {
@@ -36,7 +40,7 @@ func (lh Handler) Handler() http.HandlerFunc {
 
 func (lh Handler) processGet(w http.ResponseWriter, r *http.Request) {
 	org := r.Header.Get(server.OrganizationHeader)
-	repos, err := lh.Config.ReadRepositoryConfig(org)
+	repos, err := lh.config.ReadRepositoryConfig(org)
 	if err != nil {
 		log.Printf("Error while processing %v's repository configuration: %v", org, err)
 		w.WriteHeader(http.StatusNotFound)
@@ -48,7 +52,7 @@ func (lh Handler) processGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	repoName := r.Header.Get(repoNameHeader)
-	repo, err := tm.FindRepo(repos, repoName)
+	repo, err := lh.provider.FindRepo(repos, repoName)
 	if err != nil {
 		log.Printf("no repo for org %s, with name %s, error: %v", org, repoName, err)
 		w.WriteHeader(http.StatusNotFound)
@@ -56,7 +60,7 @@ func (lh Handler) processGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bt := r.Header.Get(authorizationHeader)
-	finalTree, err := tm.TreeRemoteAllow(lh.Authorization, bt, org, r.URL.Path, repo)
+	finalTree, err := lh.provider.TreeAllow(r.URL.Path, bt, org, repo)
 	if err != nil {
 		log.Printf("Error load final tree. Error: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)

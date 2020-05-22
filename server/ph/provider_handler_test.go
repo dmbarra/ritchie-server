@@ -1,58 +1,133 @@
-package tm
+package ph
 
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"reflect"
 	"testing"
-
-	log "github.com/sirupsen/logrus"
 
 	"ritchie-server/server"
 	"ritchie-server/server/mock"
 )
 
-func TestTreeRemoteAllow(t *testing.T) {
+func TestHandler_FindRepo(t *testing.T) {
+	type fields struct {
+		authorization server.Constraints
+	}
 	type args struct {
-		sec    server.Constraints
+		repos         []server.Repository
+		repoName      string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		in     args
+		out    server.Repository
+		outErr bool
+	}{
+		{
+			name: "find commons",
+			in: args{
+				repos:    mock.DummyRepoList(),
+				repoName: "commons",
+			},
+			out:    mock.DummyRepoList()[0],
+			outErr: false,
+		},
+		{
+			name: "repo not found",
+			in: args{
+				repos:    mock.DummyRepoList(),
+				repoName: "notfound",
+			},
+			out:    server.Repository{},
+			outErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hp := Handler{
+				authorization: tt.fields.authorization,
+			}
+			got, err := hp.FindRepo(tt.in.repos, tt.in.repoName)
+			if (err != nil) != tt.outErr {
+				t.Errorf("FindRepo() error = %v, wantErr %v", err, tt.outErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.out) {
+				t.Errorf("FindRepo() got = %v, want %v", got, tt.out)
+			}
+		})
+	}
+}
+
+func TestHandler_TreeAllow(t *testing.T) {
+	type fields struct {
+		authorization server.Constraints
+	}
+	type args struct {
+		path   string
 		bToken string
 		org    string
-		tPath  string
 		repo   server.Repository
 	}
 	tests := []struct {
 		name   string
+		fields fields
 		in     args
 		out    server.Tree
 		outErr bool
 	}{
 		{
 			name: "response tree with allow commands",
-			in: args{
-				sec: mock.AuthorizationMock{
+			fields: fields{
+				authorization: mock.AuthorizationMock{
 					B: true,
 					E: nil,
 					R: []string{"USER"},
 				},
+			},
+			in: args{
+				path:   "/tree/tree.json",
 				bToken: "",
 				org:    "",
-				tPath:  "/tree/tree.json",
 				repo:   mock.DummyRepo(),
 			},
 			out:    treeRoleUser(),
 			outErr: false,
 		},
 		{
-			name: "list roles error",
+			name: "provider error",
+			fields: fields{
+				authorization: mock.AuthorizationMock{
+					B: true,
+					E: nil,
+					R: []string{"USER"},
+				},
+			},
 			in: args{
-				sec: mock.AuthorizationMock{
+				path:   "/tree/tree.json",
+				bToken: "",
+				org:    "",
+				repo:   mock.DummyRepo("ERROR"),
+			},
+			out:    server.Tree{},
+			outErr: true,
+		},
+		{
+			name: "list roles error",
+			fields: fields{
+				authorization: mock.AuthorizationMock{
 					B: false,
 					E: errors.New("error"),
 					R: nil,
 				},
+			},
+			in: args{
 				bToken: "",
 				org:    "",
-				tPath:  "/tree/tree.json",
+				path:   "/tree/tree.json",
 				repo:   mock.DummyRepo(),
 			},
 			out:    server.Tree{},
@@ -60,15 +135,17 @@ func TestTreeRemoteAllow(t *testing.T) {
 		},
 		{
 			name: "tree not found",
-			in: args{
-				sec: mock.AuthorizationMock{
+			fields: fields{
+				authorization: mock.AuthorizationMock{
 					B: true,
 					E: nil,
 					R: []string{"USER"},
 				},
+			},
+			in: args{
 				bToken: "",
 				org:    "",
-				tPath:  "/tree/tree-notfound.json",
+				path:   "/tree/tree-notfound.json",
 				repo:   mock.DummyRepo(),
 			},
 			out:    server.Tree{},
@@ -77,9 +154,12 @@ func TestTreeRemoteAllow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := TreeRemoteAllow(tt.in.sec, tt.in.bToken, tt.in.org, tt.in.tPath, tt.in.repo)
+			hp := Handler{
+				authorization: tt.fields.authorization,
+			}
+			got, err := hp.TreeAllow(tt.in.path, tt.in.bToken, tt.in.org, tt.in.repo)
 			if (err != nil) != tt.outErr {
-				t.Errorf("TreeRemoteAllow() error = %v, outErr %v", err, tt.outErr)
+				t.Errorf("TreeAllow() error = %v, wantErr %v", err, tt.outErr)
 				return
 			}
 			commands := make(map[string]*server.Command)
@@ -95,80 +175,91 @@ func TestTreeRemoteAllow(t *testing.T) {
 	}
 }
 
-func TestFormulaAllow(t *testing.T) {
+func TestHandler_FilesFormulasAllow(t *testing.T) {
+	type fields struct {
+		authorization server.Constraints
+	}
 	type args struct {
-		sec   server.Constraints
-		fPath string
-		token string
-		org   string
-		repo  server.Repository
+		path   string
+		bToken string
+		org    string
+		repo   server.Repository
 	}
 	tests := []struct {
 		name   string
+		fields fields
 		in     args
 		out    bool
 		outErr bool
 	}{
 		{
-			name:   "allow",
-			in:     args{
-				sec: mock.AuthorizationMock{
+			name: "allow",
+			fields: fields{
+				authorization: mock.AuthorizationMock{
 					B: true,
 					E: nil,
 					R: []string{"USER"},
 				},
-				fPath: "/formulas/aws/terraform/config.json",
-				token: "",
-				org:   "",
-				repo:  mock.DummyRepo(),
+			},
+			in: args{
+				path:   "/formulas/aws/terraform/config.json",
+				bToken: "",
+				org:    "",
+				repo:   mock.DummyRepo(),
 			},
 			out:    true,
 			outErr: false,
 		},
 		{
-			name:   "not allow",
-			in:     args{
-				sec: mock.AuthorizationMock{
+			name: "not allow",
+			fields: fields{
+				authorization: mock.AuthorizationMock{
 					B: true,
 					E: nil,
 					R: []string{"NO_RULE"},
 				},
-				fPath: "/formulas/aws/terraform/config.json",
-				token: "",
-				org:   "",
-				repo:  mock.DummyRepo(),
+			},
+			in: args{
+				path:   "/formulas/aws/terraform/config.json",
+				bToken: "",
+				org:    "",
+				repo:   mock.DummyRepo(),
 			},
 			out:    false,
 			outErr: false,
 		},
 		{
-			name:   "load roles error",
-			in:     args{
-				sec: mock.AuthorizationMock{
+			name: "load roles error",
+			fields: fields{
+				authorization: mock.AuthorizationMock{
 					B: true,
 					E: errors.New("error"),
 					R: []string{},
 				},
-				fPath: "/formulas/aws/terraform/config.json",
-				token: "",
-				org:   "",
-				repo:  mock.DummyRepo(),
+			},
+			in: args{
+				path:   "/formulas/aws/terraform/config.json",
+				bToken: "",
+				org:    "",
+				repo:   mock.DummyRepo(),
 			},
 			out:    false,
 			outErr: true,
 		},
 		{
-			name:   "allow formula without role",
-			in:     args{
-				sec: mock.AuthorizationMock{
+			name: "allow formula without role",
+			fields: fields{
+				authorization: mock.AuthorizationMock{
 					B: true,
 					E: nil,
 					R: []string{"USER"},
 				},
-				fPath: "/formulas/scaffold/coffee-go/config.json",
-				token: "",
-				org:   "",
-				repo:  mock.DummyRepo(),
+			},
+			in: args{
+				path:   "/formulas/scaffold/coffee-go/config.json",
+				bToken: "",
+				org:    "",
+				repo:   mock.DummyRepo(),
 			},
 			out:    true,
 			outErr: false,
@@ -176,57 +267,16 @@ func TestFormulaAllow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := FormulaAllow(tt.in.sec, tt.in.fPath, tt.in.token, tt.in.org, tt.in.repo)
+			hp := Handler{
+				authorization: tt.fields.authorization,
+			}
+			got, err := hp.FilesFormulasAllow(tt.in.path, tt.in.bToken, tt.in.org, tt.in.repo)
 			if (err != nil) != tt.outErr {
-				t.Errorf("FormulaAllow() error = %v, outErr %v", err, tt.outErr)
+				t.Errorf("FilesFormulasAllow() error = %v, wantErr %v", err, tt.outErr)
 				return
 			}
-			if got != tt.out {
-				t.Errorf("FormulaAllow() got = %v, out %v", got, tt.out)
-			}
-		})
-	}
-}
-
-func TestFindRepo(t *testing.T) {
-	type args struct {
-		repos    []server.Repository
-		repoName string
-	}
-	tests := []struct {
-		name   string
-		in     args
-		out    server.Repository
-		outErr bool
-	}{
-		{
-			name: "find commons",
-			in: args{
-				repos:    mock.DummyRepoList(),
-				repoName: "commons",
-			},
-			out: mock.DummyRepoList()[0],
-			outErr: false,
-		},
-		{
-			name: "repo not found",
-			in: args{
-				repos:    mock.DummyRepoList(),
-				repoName: "notfound",
-			},
-			out: server.Repository{},
-			outErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := FindRepo(tt.in.repos, tt.in.repoName)
-			if (err != nil) != tt.outErr {
-				t.Errorf("FindRepo() error = %v, outErr %v", err, tt.outErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.out) {
-				t.Errorf("FindRepo() got = %v, out %v", got, tt.out)
+			if len(got) > 0 != tt.out {
+				t.Errorf("FilesFormulasAllow() got = %v, want %v", got, tt.out)
 			}
 		})
 	}

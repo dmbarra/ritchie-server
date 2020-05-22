@@ -1,8 +1,10 @@
 package mock
 
 import (
-	"github.com/hashicorp/vault/api"
 	"os"
+
+	"github.com/hashicorp/vault/api"
+
 	"ritchie-server/server"
 	"ritchie-server/server/config"
 )
@@ -73,21 +75,35 @@ func DummyConfigMap(args ...string) map[string]*server.ConfigFile {
 					Name:           "commons",
 					Priority:       0,
 					TreePath:       "/tree/tree.json",
-					Remote:         remoteUrl,
 					ServerUrl:      "http://localhost:3000",
 					ReplaceRepoUrl: "http://localhost:3000/formulas",
-					Username:       "",
-					Password:       "",
+					Provider: server.Provider{
+						Type:   "HTTP",
+						Remote: remoteUrl,
+					},
 				},
 				{
 					Name:           "test1",
 					Priority:       1,
 					TreePath:       "/tree/tree-test1.json",
-					Remote:         remoteUrl,
 					ServerUrl:      "http://localhost:3000",
 					ReplaceRepoUrl: "http://localhost:3000/formulas",
-					Username:       "",
-					Password:       "",
+					Provider: server.Provider{
+						Type:   "HTTP",
+						Remote: remoteUrl,
+					},
+				},
+				{
+					Name:           "test-repo",
+					Priority:       2,
+					TreePath:       "/tree/tree-test2.json",
+					ServerUrl:      "http://localhost:3000",
+					ReplaceRepoUrl: "http://localhost:3000/formulas",
+					Provider: server.Provider{
+						Type:   "S3",
+						Bucket: "local",
+						Region: "sa-east-1",
+					},
 				},
 			},
 		}}
@@ -166,17 +182,22 @@ func DummyCredentialBadRequest() string {
 	}`
 }
 
-func DummyRepo() server.Repository {
+func DummyRepo(args ...string) server.Repository {
 	remote := getEnv(remoteUrl, "http://localhost:8882")
+	tp := "HTTP"
+	if len(args) > 0 {
+		tp = args[0]
+	}
 	return server.Repository{
 		Name:           "commons",
 		Priority:       0,
 		TreePath:       "/tree/tree.json",
-		Remote:         remote,
 		ServerUrl:      "http://localhost:3000",
 		ReplaceRepoUrl: "http://localhost:3000/formulas",
-		Username:       "",
-		Password:       "",
+		Provider: server.Provider{
+			Type:   tp,
+			Remote: remote,
+		},
 	}
 }
 
@@ -187,31 +208,34 @@ func DummyRepoList() []server.Repository {
 			Name:           "commons",
 			Priority:       0,
 			TreePath:       "/tree/tree.json",
-			Remote:         remote,
 			ServerUrl:      "http://localhost:3000",
 			ReplaceRepoUrl: "http://localhost:3000/formulas",
-			Username:       "",
-			Password:       "",
+			Provider: server.Provider{
+				Type:   "HTTP",
+				Remote: remote,
+			},
 		},
 		{
 			Name:           "test1",
 			Priority:       1,
 			TreePath:       "/tree/tree-test1.json",
-			Remote:         remote,
 			ServerUrl:      "http://localhost:3000",
 			ReplaceRepoUrl: "http://localhost:3000/formulas",
-			Username:       "",
-			Password:       "",
+			Provider: server.Provider{
+				Type:   "HTTP",
+				Remote: remote,
+			},
 		},
 		{
 			Name:           "test2",
 			Priority:       2,
 			TreePath:       "/tree/tree-test2.json",
-			Remote:         remote,
 			ServerUrl:      "http://localhost:3000",
 			ReplaceRepoUrl: "http://localhost:3000/formulas",
-			Username:       "",
-			Password:       "",
+			Provider: server.Provider{
+				Type:   "HTTP",
+				Remote: remote,
+			},
 		},
 	}
 }
@@ -277,6 +301,26 @@ func (d AuthorizationMock) ListRealmRoles(bearerToken, org string) ([]interface{
 	}
 	return new, d.E
 }
+
+type ProviderHandlerMock struct {
+	T server.Tree
+	B []byte
+	R server.Repository
+	ER error
+	ET error
+}
+
+func (ph ProviderHandlerMock) TreeAllow(path, bToken, org string, repo server.Repository) (server.Tree, error) {
+	return ph.T, ph.ET
+}
+func (ph ProviderHandlerMock)  FilesFormulasAllow(path, bToken, org string, repo server.Repository) ([]byte, error) {
+	return ph.B, ph.ET
+}
+func (ph ProviderHandlerMock)  FindRepo(repos []server.Repository, repoName string) (server.Repository, error) {
+	return ph.R, ph.ER
+}
+
+
 
 
 func getEnv(key, def string) string {
