@@ -155,16 +155,12 @@ func TestConfiguration_ReadHealthConfigs(t *testing.T) {
 			fields: fields{
 				Configs: map[string]*server.ConfigFile{
 					"zup": {
-						KeycloakConfig: &server.KeycloakConfig{
-							Url: "http://keycloak:8080",
-						},
 					},
 				},
 			},
 			out: map[string]server.HealthEndpoints{
 				"zup": {
-					KeycloakURL: "http://keycloak:8080",
-					VaultURL:    getVaultUrl(),
+					VaultURL: getVaultUrl(),
 				},
 			},
 		},
@@ -174,144 +170,6 @@ func TestConfiguration_ReadHealthConfigs(t *testing.T) {
 			c := NewConfiguration(tt.fields.Configs, tt.fields.SecurityConstraints)
 			if got := c.ReadHealthConfigs(); !reflect.DeepEqual(got, tt.out) {
 				t.Errorf("ReadHealthConfigs() = %v, out %v", got, tt.out)
-			}
-		})
-	}
-}
-
-func TestConfiguration_ReadKeycloakConfigs(t *testing.T) {
-	type fields struct {
-		Configs             map[string]*server.ConfigFile
-		SecurityConstraints server.SecurityConstraints
-	}
-	type args struct {
-		org string
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		in     args
-		out    *server.KeycloakConfig
-		outErr bool
-	}{
-		{
-			name: "read keycloak configuration",
-			fields: fields{
-				Configs: map[string]*server.ConfigFile{
-					"zup": {
-						KeycloakConfig: &server.KeycloakConfig{
-							Url:          "http://keycloak:8080",
-							Realm:        "ritchie",
-							ClientId:     "user-login",
-							ClientSecret: "user-login",
-						},
-					},
-				},
-			},
-			in: args{org: "zup"},
-			out: &server.KeycloakConfig{
-				Url:          "http://keycloak:8080",
-				Realm:        "ritchie",
-				ClientId:     "user-login",
-				ClientSecret: "user-login",
-			},
-			outErr: false,
-		},
-		{
-			name: "error read keycloak configuration",
-			fields: fields{
-				Configs: map[string]*server.ConfigFile{
-					"zup": {
-						KeycloakConfig: &server.KeycloakConfig{
-							Url:          "http://keycloak:8080",
-							Realm:        "ritchie",
-							ClientId:     "user-login",
-							ClientSecret: "user-login",
-						},
-					},
-				},
-			},
-			in:     args{org: "error"},
-			out:    nil,
-			outErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := NewConfiguration(tt.fields.Configs, tt.fields.SecurityConstraints)
-			got, err := c.ReadKeycloakConfigs(tt.in.org)
-			if (err != nil) != tt.outErr {
-				t.Errorf("ReadKeycloakConfigs() error = %v, outErr %v", err, tt.outErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.out) {
-				t.Errorf("ReadKeycloakConfigs() got = %v, out %v", got, tt.out)
-			}
-		})
-	}
-}
-
-func TestConfiguration_ReadOauthConfig(t *testing.T) {
-	type fields struct {
-		Configs             map[string]*server.ConfigFile
-		SecurityConstraints server.SecurityConstraints
-	}
-	type args struct {
-		org string
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		in     args
-		out    *server.OauthConfig
-		outErr bool
-	}{
-		{
-			name: "read oauth configuration",
-			fields: fields{
-				Configs: map[string]*server.ConfigFile{
-					"zup": {
-						OauthConfig: &server.OauthConfig{
-							Url:      "http://localhost:8080/auth/realms/ritchie",
-							ClientId: "oauth",
-						},
-					},
-				},
-			},
-			in: args{org: "zup"},
-			out: &server.OauthConfig{
-				Url:      "http://localhost:8080/auth/realms/ritchie",
-				ClientId: "oauth",
-			},
-			outErr: false,
-		},
-		{
-			name: "error read oauth configuration",
-			fields: fields{
-				Configs: map[string]*server.ConfigFile{
-					"zup": {
-						OauthConfig: &server.OauthConfig{
-							Url:      "http://localhost:8080/auth/realms/ritchie",
-							ClientId: "oauth",
-						},
-					},
-				},
-			},
-			in:     args{org: "error"},
-			out:    nil,
-			outErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := NewConfiguration(tt.fields.Configs, tt.fields.SecurityConstraints)
-			got, err := c.ReadOauthConfig(tt.in.org)
-			if (err != nil) != tt.outErr {
-				t.Errorf("ReadOauthConfig() error = %v, outErr %v", err, tt.outErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.out) {
-				t.Errorf("ReadOauthConfig() got = %v, out %v", got, tt.out)
 			}
 		})
 	}
@@ -466,7 +324,7 @@ func TestConfiguration_ReadSecurityConstraints(t *testing.T) {
 }
 
 func getVaultUrl() string {
-	p :=  "%s/sys/health"
+	p := "%s/sys/health"
 	value := os.Getenv("VAULT_ADDR")
 	if value == "" {
 		value = "https://127.0.0.1:8200"

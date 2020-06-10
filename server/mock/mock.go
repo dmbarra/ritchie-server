@@ -10,15 +10,14 @@ import (
 )
 
 const (
-	keycloakUrl = "KEYCLOAK_URL"
-	oauthUrl = "OAUTH_URL"
+	keycloakUrl   = "KEYCLOAK_URL"
 	cliVersionUrl = "CLI_VERSION_URL"
-	remoteUrl =  "REMOTE_URL"
+	remoteUrl     = "REMOTE_URL"
 )
 
 func DummyConfig(args ...string) server.Config {
 	return config.Configuration{
-		Configs:DummyConfigMap(args...),
+		Configs: DummyConfigMap(args...),
 		SecurityConstraints: server.SecurityConstraints{
 			Constraints: []server.DenyMatcher{{
 				Pattern:      "/validate",
@@ -52,15 +51,12 @@ func DummyConfigMap(args ...string) map[string]*server.ConfigFile {
 	}
 	return map[string]*server.ConfigFile{
 		"zup": {
-			KeycloakConfig: &server.KeycloakConfig{
-				Url:          keycloakUrl,
-				Realm:        realm,
-				ClientId:     clientId,
-				ClientSecret: clientSecret,
-			},
-			OauthConfig: &server.OauthConfig{
-				Url:      getEnv(oauthUrl, "http://localhost:8080/auth/realms/ritchie"),
-				ClientId: "oauth",
+			SPConfig: map[string]string{
+				"type":         "keycloak",
+				"url":          keycloakUrl,
+				"realm":        realm,
+				"clientId":     clientId,
+				"clientSecret": clientSecret,
 			},
 			CredentialConfig: map[string][]server.CredentialConfig{
 				"credential1": {{Field: "Field", Type: "type"}},
@@ -109,7 +105,7 @@ func DummyConfigMap(args ...string) map[string]*server.ConfigFile {
 		}}
 }
 
-//Cli Version
+// Cli Version
 func DummyConfigCliVersionUrlNotFound() server.Config {
 	return config.Configuration{
 		Configs: map[string]*server.ConfigFile{
@@ -144,7 +140,7 @@ func DummySecurityConstraints() server.SecurityConstraints {
 	}
 }
 
-//Credential
+// Credential
 func DummyCredential() string {
 	return `{
 	"service": "credential1",
@@ -240,35 +236,61 @@ func DummyRepoList() []server.Repository {
 	}
 }
 
-//server.KeycloakManager mock
-type KeycloakMock struct {
-	Token string
-	Code  int
-	Err   error
+// server.SecurityManager mock
+type SecurityManagerMock struct {
+	U server.User
+	L server.LoginError
+	T int64
 }
 
-func (k KeycloakMock) CreateUser(server.CreateUser, string) (string, error) {
-	return k.Token, k.Err
+func (s SecurityManagerMock) Login(username, password string) (server.User, server.LoginError) {
+	return s.U, s.L
 }
-func (k KeycloakMock) DeleteUser(string, string) error {
-	return k.Err
-}
-func (k KeycloakMock) Login(string, string, string) (string, int, error) {
-	return k.Token, k.Code, k.Err
+func (s SecurityManagerMock) TTL() int64 {
+	return s.T
 }
 
-//server.ValtManager mock
+type LoginErrorMock struct {
+	E error
+	C int
+}
+
+func (le LoginErrorMock) Error() error {
+	return le.E
+}
+
+func (le LoginErrorMock) Code() int {
+	return le.C
+}
+
+type UserMock struct {
+	R []string
+	U server.UserInfo
+}
+
+func (u UserMock) Roles() []string {
+	return u.R
+}
+
+func (u UserMock) UserInfo() server.UserInfo {
+	return u.U
+}
+
+// server.ValtManager mock
 type VaultMock struct {
-	Err     error
-	ErrList error
-	Keys    []interface{}
+	Err        error
+	ErrList    error
+	Keys       []interface{}
+	Data       string
+	ReturnMap  map[string]interface{}
+	ErrDecrypt error
 }
 
 func (v VaultMock) Write(string, map[string]interface{}) error {
 	return v.Err
 }
 func (v VaultMock) Read(string) (map[string]interface{}, error) {
-	return nil, v.Err
+	return v.ReturnMap, v.Err
 }
 func (v VaultMock) List(string) ([]interface{}, error) {
 	return v.Keys, v.ErrList
@@ -277,6 +299,13 @@ func (v VaultMock) Delete(string) error {
 	return v.Err
 }
 func (v VaultMock) Start(*api.Client) {
+}
+
+func (v VaultMock) Encrypt(data string) (string, error) {
+	return v.Data, nil
+}
+func (v VaultMock) Decrypt(data string) (string, error) {
+	return v.Data, v.ErrDecrypt
 }
 
 type AuthorizationMock struct {
@@ -291,21 +320,19 @@ func (d AuthorizationMock) AuthorizationPath(bearerToken, path, method, org stri
 func (d AuthorizationMock) ValidatePublicConstraints(path, method string) bool {
 	return d.B
 }
-func (d AuthorizationMock) ListRealmRoles(bearerToken, org string) ([]interface{}, error) {
+func (d AuthorizationMock) ListRealmRoles(bearerToken, org string) ([]string, error) {
 	if d.E != nil {
 		return nil, d.E
 	}
-	new := make([]interface{}, len(d.R))
-	for i, v := range d.R {
-		new[i] = v
-	}
+	var new []string
+	new = append(new, d.R...)
 	return new, d.E
 }
 
 type ProviderHandlerMock struct {
-	T server.Tree
-	B []byte
-	R server.Repository
+	T  server.Tree
+	B  []byte
+	R  server.Repository
 	ER error
 	ET error
 }
@@ -313,15 +340,12 @@ type ProviderHandlerMock struct {
 func (ph ProviderHandlerMock) TreeAllow(path, bToken, org string, repo server.Repository) (server.Tree, error) {
 	return ph.T, ph.ET
 }
-func (ph ProviderHandlerMock)  FilesFormulasAllow(path, bToken, org string, repo server.Repository) ([]byte, error) {
+func (ph ProviderHandlerMock) FilesFormulasAllow(path, bToken, org string, repo server.Repository) ([]byte, error) {
 	return ph.B, ph.ET
 }
-func (ph ProviderHandlerMock)  FindRepo(repos []server.Repository, repoName string) (server.Repository, error) {
+func (ph ProviderHandlerMock) FindRepo(repos []server.Repository, repoName string) (server.Repository, error) {
 	return ph.R, ph.ER
 }
-
-
-
 
 func getEnv(key, def string) string {
 	value := os.Getenv(key)

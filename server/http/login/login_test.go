@@ -12,9 +12,10 @@ import (
 
 func TestHandler_Handler(t *testing.T) {
 	type fields struct {
-		k      server.KeycloakManager
-		method string
-		org    string
+		s       server.SecurityProviders
+		v       server.VaultManager
+		method  string
+		org     string
 		payload string
 	}
 	tests := []struct {
@@ -25,13 +26,29 @@ func TestHandler_Handler(t *testing.T) {
 		{
 			name: "success",
 			fields: fields{
-				k:      mock.KeycloakMock{
-					Token: "token",
-					Code:  0,
-					Err:   nil,
+				s: server.SecurityProviders{
+					Providers: map[string]server.SecurityManager{
+						"zup": mock.SecurityManagerMock{
+							U: mock.UserMock{
+								R: []string{"rit_admin"},
+								U: server.UserInfo{
+									Name:     "User User",
+									Username: "user",
+									Email:    "user@user.com",
+								},
+							},
+							L: nil,
+							T: 34000,
+						},
+					},
 				},
-				method: http.MethodPost,
-				org:    "zup",
+				v: mock.VaultMock{
+					Err:     nil,
+					ErrList: nil,
+					Keys:    nil,
+				},
+				method:  http.MethodPost,
+				org:     "zup",
 				payload: `{"username": "user", "password":"admin"}`,
 			},
 			out: func() http.HandlerFunc {
@@ -42,15 +59,56 @@ func TestHandler_Handler(t *testing.T) {
 			}(),
 		},
 		{
+			name: "sp not found",
+			fields: fields{
+				s: server.SecurityProviders{
+					Providers: map[string]server.SecurityManager{
+						"zup": mock.SecurityManagerMock{
+							U: mock.UserMock{
+								R: []string{"rit_admin"},
+								U: server.UserInfo{
+									Name:     "User User",
+									Username: "user",
+									Email:    "user@user.com",
+								},
+							},
+							L: nil,
+							T: 34000,
+						},
+					},
+				},
+				v: mock.VaultMock{
+					Err:     nil,
+					ErrList: nil,
+					Keys:    nil,
+				},
+				method:  http.MethodPost,
+				org:     "not",
+				payload: `{"username": "user", "password":"admin"}`,
+			},
+			out: func() http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}(),
+		},
+		{
 			name: "failed login",
 			fields: fields{
-				k:      mock.KeycloakMock{
-					Token: "",
-					Code:  401,
-					Err:   errors.New("error"),
+				s: server.SecurityProviders{
+					Providers: map[string]server.SecurityManager{
+						"zup": mock.SecurityManagerMock{
+							U: nil,
+							L: mock.LoginErrorMock{
+								E: errors.New("error"),
+								C: 401,
+							},
+							T: 34000,
+						},
+					},
 				},
-				method: http.MethodPost,
-				org:    "zup",
+				method:  http.MethodPost,
+				org:     "zup",
 				payload: `{"username": "user", "password":"failed"}`,
 			},
 			out: func() http.HandlerFunc {
@@ -74,8 +132,8 @@ func TestHandler_Handler(t *testing.T) {
 		{
 			name: "failed input",
 			fields: fields{
-				method: http.MethodPost,
-				org:    "zup",
+				method:  http.MethodPost,
+				org:     "zup",
 				payload: `1`,
 			},
 			out: func() http.HandlerFunc {
@@ -87,8 +145,8 @@ func TestHandler_Handler(t *testing.T) {
 		{
 			name: "empty fields",
 			fields: fields{
-				method: http.MethodPost,
-				org:    "zup",
+				method:  http.MethodPost,
+				org:     "zup",
 				payload: `{}`,
 			},
 			out: func() http.HandlerFunc {
@@ -101,7 +159,7 @@ func TestHandler_Handler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLoginHandler(tt.fields.k)
+			h := NewLoginHandler(tt.fields.s, tt.fields.v)
 			var b []byte
 			if len(tt.fields.payload) > 0 {
 				b = append(b, []byte(tt.fields.payload)...)

@@ -2,7 +2,9 @@ package credential
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,6 +21,7 @@ func TestHandler_HandlerMe(t *testing.T) {
 		org     string
 		ctx     string
 		payload string
+		auth    string
 	}
 	tests := []struct {
 		name   string
@@ -26,8 +29,11 @@ func TestHandler_HandlerMe(t *testing.T) {
 		out    http.HandlerFunc
 	}{
 		{
-			name:   "method not found",
-			fields: fields{method: http.MethodPatch},
+			name: "method not found",
+			fields: fields{
+				method: http.MethodPatch,
+				auth:   "dGVzdA==",
+			},
 			out: func() http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					http.NotFound(w, r)
@@ -36,11 +42,14 @@ func TestHandler_HandlerMe(t *testing.T) {
 		},
 		{
 			name: "get credential success",
-			fields: fields{method: http.MethodGet, v: vaultManagerMock{
-				Error:      nil,
-				ReturnMap:  map[string]interface{}{"a": "b"},
-				ReturnList: nil,
-			}},
+			fields: fields{
+				method: http.MethodGet,
+				v: mock.VaultMock{
+					ReturnMap: map[string]interface{}{"a": "b"},
+					Data:      userLoggedJson(),
+				},
+				auth: "dGVzdA==",
+			},
 			out: func() http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					w.Header().Add("Content-Type", "application/json")
@@ -48,16 +57,67 @@ func TestHandler_HandlerMe(t *testing.T) {
 			}(),
 		},
 		{
-			name: "post credential success",
-			fields: fields{method: http.MethodPost, v: vaultManagerMock{
-				Error:      nil,
-				ReturnMap:  map[string]interface{}{"a": "b"},
-				ReturnList: nil,
+			name: "get error decode",
+			fields: fields{
+				method: http.MethodGet,
+				v: mock.VaultMock{
+					ReturnMap: map[string]interface{}{"a": "b"},
+					Data:      userLoggedJson(),
+				},
+				auth: "error8",
 			},
+			out: func() http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusUnauthorized)
+				}
+			}(),
+		},
+		{
+			name: "get error decrypt",
+			fields: fields{
+				method: http.MethodGet,
+				v: mock.VaultMock{
+					ReturnMap: map[string]interface{}{"a": "b"},
+					Data:      userLoggedJson(),
+					ErrDecrypt: errors.New("error"),
+				},
+				auth: "dGVzdA==",
+			},
+			out: func() http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusUnauthorized)
+				}
+			}(),
+		},
+		{
+			name: "get error unmarshal",
+			fields: fields{
+				method: http.MethodGet,
+				v: mock.VaultMock{
+					ReturnMap: map[string]interface{}{"a": "b"},
+					Data:      "err",
+				},
+				auth: "dGVzdA==",
+			},
+			out: func() http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusUnauthorized)
+				}
+			}(),
+		},
+		{
+			name: "post credential success",
+			fields: fields{
+				method: http.MethodPost,
+				v: mock.VaultMock{
+					ReturnMap: map[string]interface{}{"a": "b"},
+					Data:      userLoggedJson(),
+				},
 				payload: mock.DummyCredential(),
 				ctx:     "default",
 				org:     "zup",
 				c:       mock.DummyConfig(),
+				auth:    "dGVzdA==",
 			},
 			out: func() http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
@@ -66,16 +126,38 @@ func TestHandler_HandlerMe(t *testing.T) {
 			}(),
 		},
 		{
-			name: "post credential invalid json",
-			fields: fields{method: http.MethodPost, v: vaultManagerMock{
-				Error:      nil,
-				ReturnMap:  map[string]interface{}{"a": "b"},
-				ReturnList: nil,
+			name: "post error decrypt",
+			fields: fields{
+				method: http.MethodPost,
+				v: mock.VaultMock{
+					ReturnMap: map[string]interface{}{"a": "b"},
+					Data:      userLoggedJson(),
+				},
+				payload: mock.DummyCredential(),
+				ctx:     "default",
+				org:     "zup",
+				c:       mock.DummyConfig(),
+				auth:    "test8",
 			},
+			out: func() http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusUnauthorized)
+				}
+			}(),
+		},
+		{
+			name: "post credential invalid json",
+			fields: fields{
+				method: http.MethodPost,
+				v: mock.VaultMock{
+					ReturnMap: map[string]interface{}{"a": "b"},
+					Data:      userLoggedJson(),
+				},
 				payload: "failed",
 				ctx:     "default",
 				org:     "zup",
 				c:       mock.DummyConfig(),
+				auth:    "dGVzdA==",
 			},
 			out: func() http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
@@ -85,15 +167,17 @@ func TestHandler_HandlerMe(t *testing.T) {
 		},
 		{
 			name: "post credential bad request",
-			fields: fields{method: http.MethodPost, v: vaultManagerMock{
-				Error:      nil,
-				ReturnMap:  map[string]interface{}{"a": "b"},
-				ReturnList: nil,
-			},
+			fields: fields{
+				method: http.MethodPost,
+				v: mock.VaultMock{
+					ReturnMap: map[string]interface{}{"a": "b"},
+					Data:      userLoggedJson(),
+				},
 				payload: mock.DummyCredentialBadRequest(),
 				ctx:     "default",
 				org:     "zup",
 				c:       mock.DummyConfig(),
+				auth:    "dGVzdA==",
 			},
 			out: func() http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
@@ -104,15 +188,18 @@ func TestHandler_HandlerMe(t *testing.T) {
 		},
 		{
 			name: "post credential error write",
-			fields: fields{method: http.MethodPost, v: vaultManagerMock{
-				Error:      errors.New("error"),
-				ReturnMap:  map[string]interface{}{"a": "b"},
-				ReturnList: nil,
-			},
+			fields: fields{
+				method: http.MethodPost,
+				v: mock.VaultMock{
+					Err:       errors.New("error"),
+					ReturnMap: map[string]interface{}{"a": "b"},
+					Data:      userLoggedJson(),
+				},
 				payload: mock.DummyCredential(),
 				ctx:     "default",
 				org:     "zup",
 				c:       mock.DummyConfig(),
+				auth:    "dGVzdA==",
 			},
 			out: func() http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
@@ -122,11 +209,14 @@ func TestHandler_HandlerMe(t *testing.T) {
 		},
 		{
 			name: "get credential error",
-			fields: fields{method: http.MethodGet, v: vaultManagerMock{
-				Error:      errors.New("error"),
-				ReturnMap:  nil,
-				ReturnList: nil,
-			}},
+			fields: fields{
+				method: http.MethodGet,
+				v: mock.VaultMock{
+					Err:  errors.New("error"),
+					Data: userLoggedJson(),
+				},
+				auth: "dGVzdA==",
+			},
 			out: func() http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusInternalServerError)
@@ -135,11 +225,11 @@ func TestHandler_HandlerMe(t *testing.T) {
 		},
 		{
 			name: "get credential not found",
-			fields: fields{method: http.MethodGet, v: vaultManagerMock{
-				Error:      nil,
-				ReturnMap:  nil,
-				ReturnList: nil,
-			}},
+			fields: fields{
+				method: http.MethodGet,
+				v:      mock.VaultMock{Data: userLoggedJson()},
+				auth:   "dGVzdA==",
+			},
 			out: func() http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusNotFound)
@@ -155,7 +245,7 @@ func TestHandler_HandlerMe(t *testing.T) {
 				b = append(b, []byte(tt.fields.payload)...)
 			}
 			r, _ := http.NewRequest(tt.fields.method, "/test", bytes.NewReader(b))
-			r.Header.Add(authorizationHeader, "Bearer "+bearerTest)
+			r.Header.Add(server.AuthorizationHeader, tt.fields.auth)
 			r.Header.Add(server.ContextHeader, tt.fields.ctx)
 			r.Header.Add(server.OrganizationHeader, tt.fields.org)
 			r.Header.Add("Content-Type", "application/json")
@@ -177,4 +267,22 @@ func TestHandler_HandlerMe(t *testing.T) {
 			}
 		})
 	}
+}
+
+func userLoggedJson() string {
+	u := server.UserLogged{
+		UserInfo: server.UserInfo{
+			Name:     "test",
+			Username: "test",
+			Email:    "test@test.com",
+		},
+		Roles: []string{"rit_user", "rit_admin"},
+		TTL:   0,
+		Org:   "zup",
+	}
+	b, err := json.Marshal(u)
+	if err != nil {
+		log.Fatal("error json.Marshal(u)")
+	}
+	return string(b)
 }

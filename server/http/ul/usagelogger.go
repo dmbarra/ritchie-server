@@ -1,4 +1,4 @@
-package usagelogger
+package ul
 
 import (
 	"encoding/json"
@@ -9,7 +9,6 @@ import (
 )
 
 type Handler struct {
-	Config server.Config
 }
 
 type cmdUser struct {
@@ -17,8 +16,8 @@ type cmdUser struct {
 	Cmd      string `json:"command"`
 }
 
-func NewUsageLoggerHandler(config server.Config) server.DefaultHandler {
-	return Handler{Config: config}
+func NewUsageLoggerHandler() server.DefaultHandler {
+	return Handler{}
 }
 
 func (mu Handler) Handler() http.HandlerFunc {
@@ -50,13 +49,6 @@ func (mu Handler) processPost(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(err)
-		return
-	}
-	organizationHeader := r.Header.Get(server.OrganizationHeader)
-	_, err = mu.Config.ReadOauthConfig(organizationHeader)
-	if err != nil {
-		log.Error("Not found for organization ", organizationHeader)
-		http.NotFound(w, r)
 		return
 	}
 	mUserJSON, _ := json.Marshal(mUser)

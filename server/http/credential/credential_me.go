@@ -2,6 +2,7 @@ package credential
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -12,19 +13,24 @@ import (
 
 func (h Handler) HandleMe() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		username := loadUser(*r).username
 		switch r.Method {
 		case http.MethodGet:
-			h.processMeGet(w, r, username)
+			h.processMeGet(w, r)
 		case http.MethodPost:
-			h.processMePost(w, r, username)
+			h.processMePost(w, r)
 		default:
 			http.NotFound(w, r)
 		}
 	}
 }
 
-func (h Handler) processMePost(w http.ResponseWriter, r *http.Request, loggedUser string) {
+func (h Handler) processMePost(w http.ResponseWriter, r *http.Request) {
+	user, err := h.loadUser(*r)
+	if err != nil {
+		log.Error(fmt.Sprintf("Failed load user to request: %v", r))
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	org := org(r)
 	ctx := ctx(r)
 	var c server.Credential
@@ -35,7 +41,7 @@ func (h Handler) processMePost(w http.ResponseWriter, r *http.Request, loggedUse
 		_ = json.NewEncoder(w).Encode(err.Error())
 		return
 	}
-	c.Username = loggedUser
+	c.Username = user.username
 
 	if err := h.defaultValidate(c, org); len(err) > 0 {
 		err := map[string]interface{}{"validationError": err}
@@ -55,11 +61,17 @@ func (h Handler) processMePost(w http.ResponseWriter, r *http.Request, loggedUse
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (h Handler) processMeGet(w http.ResponseWriter, r *http.Request, loggedUser string) {
+func (h Handler) processMeGet(w http.ResponseWriter, r *http.Request) {
+	user, err := h.loadUser(*r)
+	if err != nil {
+		log.Error(fmt.Sprintf("Failed load user to request: %v", r))
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	service := serviceFromPath(r.URL.Path)
 	org := org(r)
 	ctx := ctx(r)
-	c := server.Credential{Service: service, Username: loggedUser}
+	c := server.Credential{Service: service, Username: user.username}
 
 	cre, err := h.findCredential(org, ctx, c)
 	if err != nil {

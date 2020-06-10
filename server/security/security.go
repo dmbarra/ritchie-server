@@ -1,24 +1,26 @@
 package security
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/Nerzal/gocloak/v4"
-	"github.com/dgrijalva/jwt-go"
+	"time"
+
 	"ritchie-server/server"
 	"ritchie-server/server/wpm"
-	"strings"
-)
-
-const (
-	bearer = "Bearer "
 )
 
 type Authorization struct {
-	Config server.Config
+	config       server.Config
+	vaultManager server.VaultManager
 }
 
-func NewAuthorization(c server.Config) server.Constraints {
-	return Authorization{Config: c}
+func NewAuthorization(c server.Config, v server.VaultManager) server.Constraints {
+	return Authorization{
+		config:       c,
+		vaultManager: v,
+	}
 }
 
 func (auth Authorization) AuthorizationPath(bearerToken, path, method, org string) (bool, error) {
@@ -34,7 +36,7 @@ func (auth Authorization) AuthorizationPath(bearerToken, path, method, org strin
 
 func (auth Authorization) ValidatePublicConstraints(path, method string) bool {
 
-	sc := auth.Config.ReadSecurityConstraints()
+	sc := auth.config.ReadSecurityConstraints()
 
 	for _, pc := range sc.PublicConstraints {
 		if wpm.NewWildcardPattern(path, pc.Pattern).Match() {
@@ -48,47 +50,48 @@ func (auth Authorization) ValidatePublicConstraints(path, method string) bool {
 	return false
 }
 
-func (auth Authorization) validateConstraints(path, method string, roles []interface{}) bool {
+func (auth Authorization) validateConstraints(path, method string, roles []string) bool {
 
-	sc := auth.Config.ReadSecurityConstraints()
+	sc := auth.config.ReadSecurityConstraints()
 
 	for _, pc := range sc.Constraints {
 		if wpm.NewWildcardPattern(path, pc.Pattern).Match() {
 			for _, role := range roles {
-				rm := pc.RoleMappings[role.(string)]
-					for _, m := range rm {
-						if method == m {
-							return true
-						}
+				rm := pc.RoleMappings[role]
+				for _, m := range rm {
+					if method == m {
+						return true
 					}
+				}
 			}
 		}
 	}
 	return false
 }
 
-func (auth Authorization) ListRealmRoles(bearerToken, org string) ([]interface{}, error) {
-	if "" == bearerToken {
-		return nil, fmt.Errorf("Bearer Token is empty ")
+func (auth Authorization) ListRealmRoles(token, org string) ([]string, error) {
+	if token != "" {
+		t, err := base64.StdEncoding.DecodeString(token)
+		if err != nil {
+			return nil, fmt.Errorf("failed decode token, error: %v", err)
+		}
+		tf, err := auth.vaultManager.Decrypt(string(t))
+		if err != nil {
+			return nil, errors.New("failed decrypt token")
+		}
+		var ul server.UserLogged
+		err = json.Unmarshal([]byte(tf), &ul)
+		if err != nil {
+			return nil, errors.New("failed unmarshal token to user info")
+		}
+		if org != ul.Org {
+			return nil, errors.New("receive org not equal token")
+		}
+		tokenTime := time.Unix(ul.TTL, 0)
+		if time.Since(tokenTime).Seconds() > 0 {
+			return nil, errors.New("token expired")
+		}
+		return ul.Roles, nil
 	}
-	if !strings.Contains(bearerToken, bearer) {
-		return nil, fmt.Errorf("Bearer Token is not valid ")
-	}
-	jwtString := strings.Replace(bearerToken, bearer, "", -1)
-	if "" == jwtString {
-		return nil, fmt.Errorf("Bearer Token result is empty ")
-	}
-	kConfig, err := auth.Config.ReadKeycloakConfigs(org)
-	if err != nil {
-		return nil, err
-	}
-	client := gocloak.NewClient(kConfig.Url)
-	claims := jwt.MapClaims{}
-	_, err = client.DecodeAccessTokenCustomClaims(jwtString, kConfig.Realm, claims)
-	if err != nil {
-		return nil, err
-	}
-	realmAccess := claims["realm_access"].(map[string]interface{})
-	roles := realmAccess["roles"].([]interface{})
-	return roles, nil
+	return nil, errors.New("token is empty")
 }

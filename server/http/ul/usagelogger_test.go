@@ -1,18 +1,17 @@
-package usagelogger
+package ul
 
 import (
 	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"ritchie-server/server"
-	"ritchie-server/server/mock"
 	"testing"
+
+	"ritchie-server/server"
 )
 
 func TestHandler_Handler(t *testing.T) {
 	type fields struct {
-		Config  server.Config
 		method  string
 		org     string
 		command interface{}
@@ -25,7 +24,6 @@ func TestHandler_Handler(t *testing.T) {
 		{
 			name: "success",
 			fields: fields{
-				Config: mock.DummyConfig(),
 				method: http.MethodPost,
 				org:    "zup",
 				command: cmdUser{
@@ -42,7 +40,6 @@ func TestHandler_Handler(t *testing.T) {
 		{
 			name: "not found",
 			fields: fields{
-				Config: mock.DummyConfig(),
 				method: http.MethodGet,
 				org:    "zup",
 				command: cmdUser{
@@ -59,7 +56,6 @@ func TestHandler_Handler(t *testing.T) {
 		{
 			name: "bad request",
 			fields: fields{
-				Config:  mock.DummyConfig(),
 				method:  http.MethodPost,
 				org:     "zup",
 				command: cmdUser{},
@@ -73,7 +69,6 @@ func TestHandler_Handler(t *testing.T) {
 		{
 			name: "error",
 			fields: fields{
-				Config:  mock.DummyConfig(),
 				method:  http.MethodPost,
 				org:     "zup",
 				command: "test",
@@ -84,28 +79,11 @@ func TestHandler_Handler(t *testing.T) {
 				}
 			}(),
 		},
-		{
-			name: "org not found",
-			fields: fields{
-				Config: mock.DummyConfig(),
-				method: http.MethodPost,
-				org:    "notfound",
-				command: cmdUser{
-					Username: "user",
-					Cmd:      "rit sample",
-				},
-			},
-			want: func() http.HandlerFunc {
-				return func(w http.ResponseWriter, r *http.Request) {
-					http.Error(w, "", http.StatusNotFound)
-				}
-			}(),
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			mu := NewUsageLoggerHandler(tt.fields.Config)
+			mu := NewUsageLoggerHandler()
 
 			payloadJson, _ := json.Marshal(tt.fields.command)
 

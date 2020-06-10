@@ -1,11 +1,11 @@
 package credential
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"strings"
-
-	"github.com/dgrijalva/jwt-go"
 
 	"ritchie-server/server"
 )
@@ -13,15 +13,12 @@ import (
 const (
 	credentialVaultPath    = "/%s/%s/%s"
 	orgCredentialVaultPath = "/%s/%s"
-	authorizationHeader    = "Authorization"
-	bearer                 = "Bearer "
 )
 
 type user struct {
 	username   string
 	email      string
 	name       string
-	familyName string
 }
 
 type Handler struct {
@@ -113,21 +110,24 @@ func ctx(r *http.Request) server.Ctx {
 	return server.Ctx(r.Header.Get(server.ContextHeader))
 }
 
-func loadUser(r http.Request) user {
-	authorizationToken := r.Header.Get(authorizationHeader)
-	jwtString := strings.Replace(authorizationToken, bearer, "", -1)
-	token, _ := jwt.Parse(jwtString, func(token *jwt.Token) (interface{}, error) {
-		return nil, nil
-	})
-	claims := token.Claims.(jwt.MapClaims)
-	name := claims["given_name"].(string)
-	familyName := claims["family_name"].(string)
-	username := claims["preferred_username"].(string)
-	email := claims["email"].(string)
-	return user{
-		username:   username,
-		email:      email,
-		name:       name,
-		familyName: familyName,
+func (h Handler) loadUser(r http.Request) (user, error) {
+	authorizationToken := r.Header.Get(server.AuthorizationHeader)
+	t, err := base64.StdEncoding.DecodeString(authorizationToken)
+	if err != nil {
+		return user{}, fmt.Errorf("failed decode token, error: %v", err)
 	}
+	tf, err := h.v.Decrypt(string(t))
+	if err != nil {
+		return user{}, errors.New("failed decrypt token")
+	}
+	var ul server.UserLogged
+	err = json.Unmarshal([]byte(tf), &ul)
+	if err != nil {
+		return user{}, errors.New("failed unmarshal token to user info")
+	}
+	return user{
+		username: ul.UserInfo.Username,
+		email:    ul.UserInfo.Email,
+		name:     ul.UserInfo.Name,
+	}, nil
 }

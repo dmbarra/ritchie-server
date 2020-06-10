@@ -19,14 +19,13 @@ func (c Configuration) ReadHealthConfigs() map[string]server.HealthEndpoints {
 
 	m := make(map[string]server.HealthEndpoints)
 
-	for orgName, config := range c.Configs {
+	for orgName := range c.Configs {
 		if orgName != "default" {
 			vaultConfig := api.DefaultConfig()
 			_ = vaultConfig.ReadEnvironment()
 
 			url := fmt.Sprint(vaultConfig.Address, "/sys/health")
 			m[orgName] = server.HealthEndpoints{
-				KeycloakURL: config.KeycloakConfig.Url,
 				VaultURL:    url,
 			}
 		}
@@ -40,22 +39,6 @@ func (c Configuration) ReadCredentialConfigs(org string) (map[string][]server.Cr
 		return nil, err
 	}
 	return config.CredentialConfig, nil
-}
-
-func (c Configuration) ReadKeycloakConfigs(org string) (*server.KeycloakConfig, error) {
-	config, err := c.getConfig(org)
-	if err != nil {
-		return nil, err
-	}
-	return config.KeycloakConfig, nil
-}
-
-func (c Configuration) ReadOauthConfig(org string) (*server.OauthConfig, error) {
-	config, err := c.getConfig(org)
-	if err != nil {
-		return nil, err
-	}
-	return config.OauthConfig, nil
 }
 
 func (c Configuration) ReadCliVersionConfigs(org string) (server.CliVersionConfig, error) {

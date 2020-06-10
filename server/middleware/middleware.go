@@ -13,8 +13,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const authorizationHeader = "Authorization"
-
 type Handler struct {
 	Authorization 		server.Constraints
 }
@@ -28,7 +26,7 @@ func (mh Handler) Filter(next http.Handler) http.Handler {
 		ok := true
 		var err error
 		if !mh.Authorization.ValidatePublicConstraints(r.URL.Path, r.Method) {
-			authorizationToken := r.Header.Get(authorizationHeader)
+			authorizationToken := r.Header.Get(server.AuthorizationHeader)
 			organization := r.Header.Get(server.OrganizationHeader)
 			ok, err = mh.Authorization.AuthorizationPath(authorizationToken, r.URL.Path, r.Method, organization)
 			if err != nil {

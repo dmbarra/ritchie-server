@@ -8,4 +8,4 @@ issue_project:
   
 slack_notification:
   enable: true # Enable slack notification when opening a new pull request
-  channel_id: C011HSTJ9GE
+  channel_id: C0147J67B8S

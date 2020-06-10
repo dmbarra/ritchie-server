@@ -184,7 +184,7 @@ func TestHandler_Handler(t *testing.T) {
 			r, _ := http.NewRequest(tt.fields.method, tt.fields.path, bytes.NewReader([]byte{}))
 
 			r.Header.Add(server.OrganizationHeader, tt.fields.org)
-			r.Header.Add(repoNameHeader, tt.fields.repoName)
+			r.Header.Add(server.RepoNameHeader, tt.fields.repoName)
 			r.Header.Add("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()

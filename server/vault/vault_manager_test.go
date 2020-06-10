@@ -2,7 +2,9 @@ package vault
 
 import (
 	"fmt"
+	"log"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ZupIT/go-vault-session/pkg/login"
@@ -248,3 +250,97 @@ func buildClient() *api.Client {
 
 	return c
 }
+
+func TestManager_Encrypt(t *testing.T) {
+	type fields struct {
+		client *api.Client
+	}
+	type args struct {
+		data string
+	}
+	tests := []struct {
+		name         string
+		fields       fields
+		args         args
+		wantContains string
+		wantErr      bool
+	}{
+		{
+			name:   "encrypt",
+			fields: fields{client: buildClient()},
+			args: args{
+				data: "test",
+			},
+			wantContains: "vault:v1:",
+			wantErr:      false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vm := &Manager{
+				client: tt.fields.client,
+			}
+			got, err := vm.Encrypt(tt.args.data)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Encrypt() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !strings.Contains(got, tt.wantContains) {
+				t.Errorf("Encrypt() got = %v, want %v", got, tt.wantContains)
+			}
+		})
+	}
+}
+
+func TestManager_Decrypt(t *testing.T) {
+	type fields struct {
+		client *api.Client
+	}
+	type args struct {
+		data string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name:   "decrypt",
+			fields: fields{client: buildClient()},
+			args: args{
+				data: encryptTest(buildClient()),
+			},
+			want:    "test",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vm := &Manager{
+				client: tt.fields.client,
+			}
+			got, err := vm.Decrypt(tt.args.data)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Decrypt() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("Decrypt() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func encryptTest(client *api.Client) string {
+	vm := &Manager{
+		client: client,
+	}
+	d, err := vm.Encrypt("test")
+	if err != nil {
+		log.Fatal("erro vm.Encrypt(\"test\")")
+	}
+	return d
+}
+

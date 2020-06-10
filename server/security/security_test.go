@@ -1,9 +1,11 @@
 package security
 
 import (
+	"encoding/json"
+	"errors"
+	"log"
 	"testing"
-
-	"github.com/Nerzal/gocloak"
+	"time"
 
 	"ritchie-server/server"
 	"ritchie-server/server/mock"
@@ -11,33 +13,34 @@ import (
 
 func TestAuthorization_AuthorizationPath(t *testing.T) {
 	type fields struct {
-		Config server.Config
+		c server.Config
+		v server.VaultManager
 	}
 	type args struct {
-		bearerToken string
-		path        string
-		method      string
-		org         string
+		token  string
+		path   string
+		method string
+		org    string
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		in      args
+		name   string
+		fields fields
+		in     args
 		out    bool
 		outErr bool
 	}{
 		{
-			name:    "empty org",
-			fields:  fields{},
-			in:      args{},
+			name:   "empty org",
+			fields: fields{},
+			in:     args{},
 			out:    false,
 			outErr: true,
 		},
 		{
 			name: "empty token",
 			in: args{
-				bearerToken: "",
-				org:         "zup",
+				token: "",
+				org:   "zup",
 			},
 			out:    false,
 			outErr: true,
@@ -45,41 +48,80 @@ func TestAuthorization_AuthorizationPath(t *testing.T) {
 		{
 			name: "invalid token",
 			in: args{
-				bearerToken: "invalid",
-				org:         "zup",
+				token: "invalid",
+				org:   "zup",
 			},
 			out:    false,
 			outErr: true,
 		},
 		{
-			name: "empty jwt",
-			in: args{
-				bearerToken: "Bearer ",
-				org:         "zup",
-			},
-			out:    false,
-			outErr: true,
-		},
-		{
-			name: "keycloak config not found",
+			name: "decrypt error",
 			fields: fields{
-				Config: mock.DummyConfig(),
+				c: mock.DummyConfig(),
+				v: mock.VaultMock{
+					Err:     errors.New("error"),
+					ErrList: nil,
+					Keys:    nil,
+					Data:    "",
+				},
 			},
 			in: args{
-				bearerToken: "Bearer " + generateAccessTokenAdmin(mock.DummyConfig()),
-				org:         "notfound",
+				token: "dG9rZW4=",
+				org:   "zup",
 			},
 			out:    false,
 			outErr: true,
 		},
 		{
-			name: "Error decode token",
+			name: "failed unmarshal token",
 			fields: fields{
-				Config: mock.DummyConfig(),
+				c: mock.DummyConfig(),
+				v: mock.VaultMock{
+					Err:     nil,
+					ErrList: nil,
+					Keys:    nil,
+					Data:    "failed unmarshal",
+				},
 			},
 			in: args{
-				bearerToken: "Bearer  invalid",
-				org:         "zup",
+				token: "dG9rZW4=",
+				org:   "zup",
+			},
+			out:    false,
+			outErr: true,
+		},
+		{
+			name: "org diff token",
+			fields: fields{
+				c: mock.DummyConfig(),
+				v: mock.VaultMock{
+					Err:     nil,
+					ErrList: nil,
+					Keys:    nil,
+					Data:    jsonUserLogged(3600),
+				},
+			},
+			in: args{
+				token: "dG9rZW4=",
+				org:   "fail",
+			},
+			out:    false,
+			outErr: true,
+		},
+		{
+			name: "token expired",
+			fields: fields{
+				c: mock.DummyConfig(),
+				v: mock.VaultMock{
+					Err:     nil,
+					ErrList: nil,
+					Keys:    nil,
+					Data:    jsonUserLogged(-1),
+				},
+			},
+			in: args{
+				token: "dG9rZW4=",
+				org:   "zup",
 			},
 			out:    false,
 			outErr: true,
@@ -87,19 +129,19 @@ func TestAuthorization_AuthorizationPath(t *testing.T) {
 		{
 			name: "Validate constrains",
 			fields: fields{
-				/*Config: dummyConfig(dummyKeycloakConfig(), server.SecurityConstraints{
-					Constraints: []server.DenyMatcher{{
-						Pattern:      "/test",
-						RoleMappings: map[string][]string{"user": {"POST", "GET"}},
-					}},
-				}),*/
-				Config:mock.DummyConfig(),
+				c: mock.DummyConfig(),
+				v: mock.VaultMock{
+					Err:     nil,
+					ErrList: nil,
+					Keys:    nil,
+					Data:    jsonUserLogged(36000),
+				},
 			},
 			in: args{
-				bearerToken: "Bearer " + generateAccessTokenAdmin(mock.DummyConfig()),
-				org:         "zup",
-				method:      "GET",
-				path:        "/validate",
+				token:  "dG9rZW4=",
+				org:    "zup",
+				method: "GET",
+				path:   "/validate",
 			},
 			out:    true,
 			outErr: false,
@@ -107,13 +149,19 @@ func TestAuthorization_AuthorizationPath(t *testing.T) {
 		{
 			name: "Invalid constrains",
 			fields: fields{
-				Config:mock.DummyConfig(),
+				c: mock.DummyConfig(),
+				v: mock.VaultMock{
+					Err:     nil,
+					ErrList: nil,
+					Keys:    nil,
+					Data:    jsonUserLogged(36000),
+				},
 			},
 			in: args{
-				bearerToken: "Bearer " + generateAccessTokenAdmin(mock.DummyConfig()),
-				org:         "zup",
-				method:      "GET",
-				path:        "/test",
+				token:  "dG9rZW4=",
+				org:    "zup",
+				method: "GET",
+				path:   "/test",
 			},
 			out:    false,
 			outErr: false,
@@ -121,8 +169,8 @@ func TestAuthorization_AuthorizationPath(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			auth := NewAuthorization(tt.fields.Config)
-			got, err := auth.AuthorizationPath(tt.in.bearerToken, tt.in.path, tt.in.method, tt.in.org)
+			auth := NewAuthorization(tt.fields.c, tt.fields.v)
+			got, err := auth.AuthorizationPath(tt.in.token, tt.in.path, tt.in.method, tt.in.org)
 			if (err != nil) != tt.outErr {
 				t.Errorf("AuthorizationPath() error = %v, outErr %v", err, tt.outErr)
 				return
@@ -134,9 +182,29 @@ func TestAuthorization_AuthorizationPath(t *testing.T) {
 	}
 }
 
+func jsonUserLogged(ttl int64) string {
+	t := time.Now().Unix() + ttl
+	u := server.UserLogged{
+		UserInfo: server.UserInfo{
+			Name:     "test",
+			Username: "test",
+			Email:    "test@test.com",
+		},
+		Roles: []string{"rit_user", "admin"},
+		TTL:   t,
+		Org:   "zup",
+	}
+	b, err := json.Marshal(u)
+	if err != nil {
+		log.Fatal("error json.Marshal(u)")
+	}
+	return string(b)
+}
+
 func TestAuthorization_ValidatePublicConstraints(t *testing.T) {
 	type fields struct {
-		Config              server.Config
+		c server.Config
+		v server.VaultManager
 	}
 	type args struct {
 		path   string
@@ -146,12 +214,12 @@ func TestAuthorization_ValidatePublicConstraints(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		out   bool
+		out    bool
 	}{
 		{
 			name: "Validate constrains",
 			fields: fields{
-				Config: mock.DummyConfig(),
+				c: mock.DummyConfig(),
 			},
 			args: args{
 				method: "GET",
@@ -162,7 +230,7 @@ func TestAuthorization_ValidatePublicConstraints(t *testing.T) {
 		{
 			name: "Invalid constrains",
 			fields: fields{
-				Config: mock.DummyConfig(),
+				c: mock.DummyConfig(),
 			},
 			args: args{
 				method: "GET",
@@ -173,17 +241,10 @@ func TestAuthorization_ValidatePublicConstraints(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			auth := NewAuthorization(tt.fields.Config)
+			auth := NewAuthorization(tt.fields.c, tt.fields.v)
 			if got := auth.ValidatePublicConstraints(tt.args.path, tt.args.method); got != tt.out {
 				t.Errorf("ValidatePublicConstraints() = %v, out %v", got, tt.out)
 			}
 		})
 	}
-}
-
-func generateAccessTokenAdmin(configs server.Config) string {
-	kc, _ := configs.ReadKeycloakConfigs("zup")
-	client := gocloak.NewClient(kc.Url)
-	token, _ := client.Login(kc.ClientId, kc.ClientSecret, kc.Realm, "user", "admin")
-	return token.AccessToken
 }

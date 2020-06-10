@@ -35,10 +35,8 @@ func TestHandler_HandlerAdmin(t *testing.T) {
 		},
 		{
 			name: "post credential success",
-			fields: fields{method: http.MethodPost, v: vaultManagerMock{
-				Error:      nil,
+			fields: fields{method: http.MethodPost, v: mock.VaultMock{
 				ReturnMap:  map[string]interface{}{"a": "b"},
-				ReturnList: nil,
 			},
 				payload: mock.DummyCredentialAdmin(),
 				ctx:     "default",
@@ -53,10 +51,8 @@ func TestHandler_HandlerAdmin(t *testing.T) {
 		},
 		{
 			name: "post credential invalid json",
-			fields: fields{method: http.MethodPost, v: vaultManagerMock{
-				Error:      nil,
+			fields: fields{method: http.MethodPost, v: mock.VaultMock{
 				ReturnMap:  map[string]interface{}{"a": "b"},
-				ReturnList: nil,
 			},
 				payload: "failed",
 				ctx:     "default",
@@ -71,10 +67,8 @@ func TestHandler_HandlerAdmin(t *testing.T) {
 		},
 		{
 			name: "post credential bad request",
-			fields: fields{method: http.MethodPost, v: vaultManagerMock{
-				Error:      nil,
+			fields: fields{method: http.MethodPost, v: mock.VaultMock{
 				ReturnMap:  map[string]interface{}{"a": "b"},
-				ReturnList: nil,
 			},
 				payload: mock.DummyCredentialBadRequest(),
 				ctx:     "default",
@@ -90,10 +84,9 @@ func TestHandler_HandlerAdmin(t *testing.T) {
 		},
 		{
 			name: "post credential error write",
-			fields: fields{method: http.MethodPost, v: vaultManagerMock{
-				Error:      errors.New("error"),
+			fields: fields{method: http.MethodPost, v: mock.VaultMock{
+				Err:      errors.New("error"),
 				ReturnMap:  map[string]interface{}{"a": "b"},
-				ReturnList: nil,
 			},
 				payload: mock.DummyCredentialAdmin(),
 				ctx:     "default",
@@ -108,10 +101,9 @@ func TestHandler_HandlerAdmin(t *testing.T) {
 		},
 		{
 			name: "post credential empty service",
-			fields: fields{method: http.MethodPost, v: vaultManagerMock{
-				Error:      errors.New("error"),
+			fields: fields{method: http.MethodPost, v: mock.VaultMock{
+				Err:      errors.New("error"),
 				ReturnMap:  map[string]interface{}{"a": "b"},
-				ReturnList: nil,
 			},
 				payload: mock.DummyCredentialEmpty(),
 				ctx:     "default",
@@ -134,7 +126,7 @@ func TestHandler_HandlerAdmin(t *testing.T) {
 				b = append(b, []byte(tt.fields.payload)...)
 			}
 			r, _ := http.NewRequest(tt.fields.method, "/test", bytes.NewReader(b))
-			r.Header.Add(authorizationHeader, "Bearer "+bearerTest)
+			r.Header.Add(server.AuthorizationHeader, "dGVzdA==")
 			r.Header.Add(server.ContextHeader, tt.fields.ctx)
 			r.Header.Add(server.OrganizationHeader, tt.fields.org)
 			r.Header.Add("Content-Type", "application/json")

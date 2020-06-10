@@ -10,6 +10,8 @@ const (
 	OrganizationHeader = "x-org"
 	ContextHeader      = "x-ctx"
 	FileConfig         = "FILE_CONFIG"
+	RepoNameHeader      = "x-repo-name"
+	AuthorizationHeader = "x-authorization"
 )
 
 type (
@@ -77,28 +79,16 @@ type (
 		PublicConstraints []PermitMatcher `yaml:"publicConstraints"`
 	}
 
-	KeycloakConfig struct {
-		Url          string `json:"url"`
-		Realm        string `json:"realm"`
-		ClientId     string `json:"clientId"`
-		ClientSecret string `json:"clientSecret"`
-	}
-
-	OauthConfig struct {
-		Url      string `json:"url"`
-		ClientId string `json:"clientId"`
-	}
 	CredentialConfig struct {
 		Field string `json:"field"`
 		Type  string `json:"type"`
 	}
 
 	ConfigFile struct {
-		KeycloakConfig   *KeycloakConfig               `json:"keycloak"`
-		OauthConfig      *OauthConfig                  `json:"oauth"`
 		CredentialConfig map[string][]CredentialConfig `json:"credentials"`
 		CliVersionConfig CliVersionConfig              `json:"cliVersionPath"`
 		RepositoryConfig []Repository                  `json:"repositories"`
+		SPConfig         map[string]string             `json:"securityProviderConfig"`
 	}
 
 	CliVersionConfig struct {
@@ -108,8 +98,7 @@ type (
 	}
 
 	HealthEndpoints struct {
-		KeycloakURL string
-		VaultURL    string
+		VaultURL string
 	}
 
 	CreateUser struct {
@@ -119,12 +108,29 @@ type (
 		LastName  string `json:"lastName"`
 		Email     string `json:"email"`
 	}
+
+	UserInfo struct {
+		Name     string `json:"name"`
+		Username string `json:"username"`
+		Email    string `json:"email"`
+	}
+
+	SecurityProviders struct {
+		Providers map[string]SecurityManager
+	}
+
+	UserLogged struct {
+		UserInfo UserInfo `json:"userInfo"`
+		Roles    []string `json:"roles"`
+		TTL      int64    `json:"ttl"`
+		Org      string   `json:"org"`
+	}
 )
 
 type Constraints interface {
 	AuthorizationPath(bearerToken, path, method, org string) (bool, error)
 	ValidatePublicConstraints(path, method string) bool
-	ListRealmRoles(bearerToken, org string) ([]interface{}, error)
+	ListRealmRoles(bearerToken, org string) ([]string, error)
 }
 
 type ConfigHealth interface {
@@ -133,14 +139,6 @@ type ConfigHealth interface {
 
 type ConfigCredential interface {
 	ReadCredentialConfigs(org string) (map[string][]CredentialConfig, error)
-}
-
-type ConfigKeycloak interface {
-	ReadKeycloakConfigs(org string) (*KeycloakConfig, error)
-}
-
-type ConfigOauth interface {
-	ReadOauthConfig(org string) (*OauthConfig, error)
 }
 
 type ConfigCliVersion interface {
@@ -158,8 +156,6 @@ type ConfigSecurityConstraints interface {
 type Config interface {
 	ConfigHealth
 	ConfigCredential
-	ConfigKeycloak
-	ConfigOauth
 	ConfigCliVersion
 	ConfigRepository
 	ConfigSecurityConstraints
@@ -171,12 +167,8 @@ type VaultManager interface {
 	List(key string) ([]interface{}, error)
 	Delete(key string) error
 	Start(*api.Client)
-}
-
-type KeycloakManager interface {
-	CreateUser(user CreateUser, org string) (string, error)
-	DeleteUser(org, email string) error
-	Login(org, user, password string) (string, int, error)
+	Encrypt(data string) (string, error)
+	Decrypt(data string) (string, error)
 }
 
 type VaultConfig interface {
@@ -203,13 +195,25 @@ type ProviderHandler interface {
 	FindRepo(repos []Repository, repoName string) (Repository, error)
 }
 
+type SecurityManager interface {
+	Login(username, password string) (User, LoginError)
+	TTL() int64
+}
+
+type LoginError interface {
+	Error() error
+	Code() int
+}
+
+type User interface {
+	Roles() []string
+	UserInfo() UserInfo
+}
+
 type Configurator interface {
 	LoadLoginHandler() DefaultHandler
-	LoadConfigHandler() DefaultHandler
-	LoadUserHandler() DefaultHandler
 	LoadCredentialConfigHandler() DefaultHandler
 	LoadConfigHealth() DefaultHandler
-	LoadOauthHandler() DefaultHandler
 	LoadUsageLoggerHandler() DefaultHandler
 	LoadCliVersionHandler() DefaultHandler
 	LoadRepositoryHandler() DefaultHandler

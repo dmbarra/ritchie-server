@@ -25,3 +25,11 @@ path "ritchie/warmup/*" {
 path "ritchie/credential/*" {
   capabilities = ["create", "update", "delete", "read", "list"]
 }
+
+path "ritchie/transit/encrypt/*" {
+  capabilities = ["update"]
+}
+
+path "ritchie/transit/decrypt/*" {
+  capabilities = ["update"]
+}

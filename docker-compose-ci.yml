@@ -42,3 +42,17 @@ services:
       KEYCLOAK_PASSWORD: admin
     volumes:
       - ./testdata/security/keycloak:/tmp/keycloak
+
+  ldap:
+    image: osixia/openldap
+    volumes:
+      - ./testdata/ldap/config.ldif:/container/service/slapd/assets/config/bootstrap/ldif/data.ldif
+    ports:
+      - "389:389"
+      - "636:636"
+    command: [--copy-service,  --loglevel, debug]
+    environment:
+      LDAP_ADMIN_PASSWORD: admin
+      LDAP_BASE_DN: dc=example,dc=org
+      LDAP_REPLICATION_HOSTS: ldap://ldap.example.org
+      LDAP_DOMAIN: example.org

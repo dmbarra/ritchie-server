@@ -66,35 +66,6 @@ func TestConfigurator_LoadCliVersionHandler(t *testing.T) {
 	}
 }
 
-func TestConfigurator_LoadConfigHandler(t *testing.T) {
-	type fields struct {
-		conf         server.Config
-		vaultManager server.VaultManager
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		want   string
-	}{
-		{
-			name:   "correct type",
-			fields: fields{},
-			want:   "keycloak.Handler",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := Configurator{
-				conf:         tt.fields.conf,
-				vaultManager: tt.fields.vaultManager,
-			}
-			if got := reflect.TypeOf(c.LoadConfigHandler()); fmt.Sprint(got) != tt.want {
-				t.Errorf("LoadConfigHandler() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestConfigurator_LoadConfigHealth(t *testing.T) {
 	type fields struct {
 		conf         server.Config
@@ -195,7 +166,7 @@ func TestConfigurator_LoadUsageLoggerHandler(t *testing.T) {
 		{
 			name:   "correct type",
 			fields: fields{},
-			want:   "usagelogger.Handler",
+			want:   "ul.Handler",
 		},
 	}
 	for _, tt := range tests {
@@ -205,7 +176,7 @@ func TestConfigurator_LoadUsageLoggerHandler(t *testing.T) {
 				vaultManager: tt.fields.vaultManager,
 			}
 			if got := reflect.TypeOf(c.LoadUsageLoggerHandler()); fmt.Sprint(got) != tt.want {
-				t.Errorf("LoadMetricsUseHandler() = %v, want %v", got, tt.want)
+				t.Errorf("LoadUsageLoggerHandler() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -240,35 +211,6 @@ func TestConfigurator_LoadMiddlewareHandler(t *testing.T) {
 	}
 }
 
-func TestConfigurator_LoadOauthHandler(t *testing.T) {
-	type fields struct {
-		conf         server.Config
-		vaultManager server.VaultManager
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		want   string
-	}{
-		{
-			name:   "correct type",
-			fields: fields{},
-			want:   "oauth.Handler",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := Configurator{
-				conf:         tt.fields.conf,
-				vaultManager: tt.fields.vaultManager,
-			}
-			if got := reflect.TypeOf(c.LoadOauthHandler()); fmt.Sprint(got) != tt.want {
-				t.Errorf("LoadOauthHandler() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestConfigurator_LoadRepositoryHandler(t *testing.T) {
 	type fields struct {
 		conf         server.Config
@@ -298,7 +240,7 @@ func TestConfigurator_LoadRepositoryHandler(t *testing.T) {
 	}
 }
 
-func TestConfigurator_LoadUserHandler(t *testing.T) {
+func TestConfigurator_LoadTreeHandler(t *testing.T) {
 	type fields struct {
 		conf         server.Config
 		vaultManager server.VaultManager
@@ -311,7 +253,7 @@ func TestConfigurator_LoadUserHandler(t *testing.T) {
 		{
 			name:   "correct type",
 			fields: fields{},
-			want:   "user.Handler",
+			want:   "tree.Handler",
 		},
 	}
 	for _, tt := range tests {
@@ -320,8 +262,66 @@ func TestConfigurator_LoadUserHandler(t *testing.T) {
 				conf:         tt.fields.conf,
 				vaultManager: tt.fields.vaultManager,
 			}
-			if got := reflect.TypeOf(c.LoadUserHandler()); fmt.Sprint(got) != tt.want {
-				t.Errorf("LoadUserHandler() = %v, want %v", got, tt.want)
+			if got := reflect.TypeOf(c.LoadTreeHandler()); fmt.Sprint(got) != tt.want {
+				t.Errorf("LoadTreeHandler() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConfigurator_LoadFormulasHandler(t *testing.T) {
+	type fields struct {
+		conf         server.Config
+		vaultManager server.VaultManager
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   string
+	}{
+		{
+			name:   "correct type",
+			fields: fields{},
+			want:   "formulas.Handler",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := Configurator{
+				conf:         tt.fields.conf,
+				vaultManager: tt.fields.vaultManager,
+			}
+			if got := reflect.TypeOf(c.LoadFormulasHandler()); fmt.Sprint(got) != tt.want {
+				t.Errorf("LoadFormulasHandler() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConfigurator_LoadHelloHandler(t *testing.T) {
+	type fields struct {
+		conf         server.Config
+		vaultManager server.VaultManager
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   string
+	}{
+		{
+			name:   "correct type",
+			fields: fields{},
+			want:   "hello.Handler",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := Configurator{
+				conf:         tt.fields.conf,
+				vaultManager: tt.fields.vaultManager,
+			}
+			if got := reflect.TypeOf(c.LoadHelloHandler()); fmt.Sprint(got) != tt.want {
+				t.Errorf("LoadHelloHandler() = %v, want %v", got, tt.want)
 			}
 		})
 	}

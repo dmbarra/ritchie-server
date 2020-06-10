@@ -3,10 +3,12 @@ package starter
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
+
+	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
+
 	"ritchie-server/server"
 	"ritchie-server/server/config"
 	"ritchie-server/server/http/cliversion"
@@ -14,18 +16,16 @@ import (
 	"ritchie-server/server/http/formulas"
 	"ritchie-server/server/http/health"
 	"ritchie-server/server/http/hello"
-	configHttp "ritchie-server/server/http/keycloak"
 	"ritchie-server/server/http/login"
-	"ritchie-server/server/http/oauth"
 	"ritchie-server/server/http/repository"
 	"ritchie-server/server/http/tree"
-	"ritchie-server/server/http/usagelogger"
-	"ritchie-server/server/http/user"
-	"ritchie-server/server/keycloak"
+	"ritchie-server/server/http/ul"
 	"ritchie-server/server/logger"
 	"ritchie-server/server/middleware"
-	"ritchie-server/server/ph"
+	"ritchie-server/server/fph"
 	"ritchie-server/server/security"
+	"ritchie-server/server/sp/keycloak"
+	"ritchie-server/server/sp/ldap"
 	"ritchie-server/server/vault"
 )
 
@@ -34,9 +34,9 @@ const fileSecurityConstraints string = "./server/resources/security-constraints.
 var fileConfig = os.Getenv(server.FileConfig)
 
 type Configurator struct {
-	conf            server.Config
-	vaultManager    server.VaultManager
-	keycloakManager server.KeycloakManager
+	conf              server.Config
+	vaultManager      server.VaultManager
+	securityProviders server.SecurityProviders
 }
 
 func NewConfiguration() (server.Configurator, error) {
@@ -52,27 +52,21 @@ func NewConfiguration() (server.Configurator, error) {
 	if err != nil {
 		return Configurator{}, fmt.Errorf("could not connect to vault, error: %v", err)
 	}
-	conf := config.NewConfiguration(loadConfigs(), sc)
+	configs := loadConfigs()
+	conf := config.NewConfiguration(configs, sc)
 	vm := vault.NewVaultManager(client)
-	km := keycloak.NewKeycloakManager(conf)
 	vm.Start(client)
+	sp := loadSecurityProviders(configs)
+
 	return Configurator{
-		conf:            conf,
-		vaultManager:    vm,
-		keycloakManager: km,
+		conf:              conf,
+		vaultManager:      vm,
+		securityProviders: sp,
 	}, nil
 }
 
 func (c Configurator) LoadLoginHandler() server.DefaultHandler {
-	return login.NewLoginHandler(c.keycloakManager)
-}
-
-func (c Configurator) LoadConfigHandler() server.DefaultHandler {
-	return configHttp.NewKeycloakHandler(c.conf)
-}
-
-func (c Configurator) LoadUserHandler() server.DefaultHandler {
-	return user.NewUserHandler(c.keycloakManager, c.vaultManager)
+	return login.NewLoginHandler(c.securityProviders, c.vaultManager)
 }
 
 func (c Configurator) LoadCredentialConfigHandler() server.DefaultHandler {
@@ -83,12 +77,8 @@ func (c Configurator) LoadConfigHealth() server.DefaultHandler {
 	return health.NewConfigHealth(c.conf)
 }
 
-func (c Configurator) LoadOauthHandler() server.DefaultHandler {
-	return oauth.NewConfigHandler(c.conf)
-}
-
 func (c Configurator) LoadUsageLoggerHandler() server.DefaultHandler {
-	return usagelogger.NewUsageLoggerHandler(c.conf)
+	return ul.NewUsageLoggerHandler()
 }
 
 func (c Configurator) LoadCliVersionHandler() server.DefaultHandler {
@@ -100,19 +90,19 @@ func (c Configurator) LoadRepositoryHandler() server.DefaultHandler {
 }
 
 func (c Configurator) LoadTreeHandler() server.DefaultHandler {
-	sa := security.NewAuthorization(c.conf)
-	ph := ph.NewProviderHandler(sa)
+	sa := security.NewAuthorization(c.conf, c.vaultManager)
+	ph := fph.NewProviderHandler(sa)
 	return tree.NewConfigHandler(c.conf, sa, ph)
 }
 
 func (c Configurator) LoadFormulasHandler() server.DefaultHandler {
-	sa := security.NewAuthorization(c.conf)
-	ph := ph.NewProviderHandler(sa)
+	sa := security.NewAuthorization(c.conf, c.vaultManager)
+	ph := fph.NewProviderHandler(sa)
 	return formulas.NewConfigHandler(c.conf, sa, ph)
 }
 
 func (c Configurator) LoadMiddlewareHandler() server.MiddlewareHandler {
-	sa := security.NewAuthorization(c.conf)
+	sa := security.NewAuthorization(c.conf, c.vaultManager)
 	return middleware.NewMiddlewareHandler(sa)
 }
 
@@ -144,4 +134,18 @@ func readFileConfig() (map[string]*server.ConfigFile, error) {
 	var configFile map[string]*server.ConfigFile
 	_ = json.Unmarshal(file, &configFile)
 	return configFile, nil
+}
+
+func loadSecurityProviders(config map[string]*server.ConfigFile) server.SecurityProviders {
+	sm := make(map[string]server.SecurityManager)
+	for org, config := range config {
+		switch config.SPConfig["type"] {
+		case "keycloak":
+			sm[org] = keycloak.NewKeycloakProvider(config.SPConfig)
+		case "ldap":
+			sm[org] = ldap.NewLdapProvider(config.SPConfig)
+
+		}
+	}
+	return server.SecurityProviders{Providers: sm}
 }

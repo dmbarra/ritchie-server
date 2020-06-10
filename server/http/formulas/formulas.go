@@ -13,11 +13,6 @@ type Handler struct {
 	provider      server.ProviderHandler
 }
 
-const (
-	repoNameHeader      = "x-repo-name"
-	authorizationHeader = "Authorization"
-)
-
 func NewConfigHandler(c server.Config, a server.Constraints, p server.ProviderHandler) server.DefaultHandler {
 	return Handler{config: c, authorization: a, provider: p}
 }
@@ -46,7 +41,7 @@ func (lh Handler) processGet(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	repoName := r.Header.Get(repoNameHeader)
+	repoName := r.Header.Get(server.RepoNameHeader)
 	repo, err := lh.provider.FindRepo(repos, repoName)
 	if err != nil {
 		log.Printf("no repo for org %s, with name %s, error: %v", org, repoName, err)
@@ -54,7 +49,7 @@ func (lh Handler) processGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	bt := r.Header.Get(authorizationHeader)
+	bt := r.Header.Get(server.AuthorizationHeader)
 	buf, err := lh.provider.FilesFormulasAllow(r.URL.Path, bt, org, repo)
 	if err != nil {
 		log.Printf("error try allow access: %v", err)

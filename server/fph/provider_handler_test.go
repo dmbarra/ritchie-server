@@ -1,4 +1,4 @@
-package ph
+package fph
 
 import (
 	"encoding/json"
@@ -47,9 +47,7 @@ func TestHandler_FindRepo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hp := Handler{
-				authorization: tt.fields.authorization,
-			}
+			hp := NewProviderHandler(tt.fields.authorization)
 			got, err := hp.FindRepo(tt.in.repos, tt.in.repoName)
 			if (err != nil) != tt.outErr {
 				t.Errorf("FindRepo() error = %v, wantErr %v", err, tt.outErr)
@@ -154,9 +152,7 @@ func TestHandler_TreeAllow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hp := Handler{
-				authorization: tt.fields.authorization,
-			}
+			hp := NewProviderHandler(tt.fields.authorization)
 			got, err := hp.TreeAllow(tt.in.path, tt.in.bToken, tt.in.org, tt.in.repo)
 			if (err != nil) != tt.outErr {
 				t.Errorf("TreeAllow() error = %v, wantErr %v", err, tt.outErr)
@@ -267,9 +263,7 @@ func TestHandler_FilesFormulasAllow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hp := Handler{
-				authorization: tt.fields.authorization,
-			}
+			hp := NewProviderHandler(tt.fields.authorization)
 			got, err := hp.FilesFormulasAllow(tt.in.path, tt.in.bToken, tt.in.org, tt.in.repo)
 			if (err != nil) != tt.outErr {
 				t.Errorf("FilesFormulasAllow() error = %v, wantErr %v", err, tt.outErr)

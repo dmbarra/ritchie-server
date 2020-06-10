@@ -15,11 +15,15 @@ unzip $C_DIR/resources/vault_1.3.0_$(uname -s)_amd64.zip -d /tmp/vault/
 
 /tmp/vault/vault secrets enable -path=ritchie/warmup generic
 /tmp/vault/vault secrets enable -path=ritchie/credential generic
+/tmp/vault/vault secrets enable -path=ritchie/transit transit
 
 /tmp/vault/vault policy write ritchie_server_policy $C_DIR/resources/ritchie_server_policy.hcl
 
 /tmp/vault/vault auth enable approle
 /tmp/vault/vault write auth/approle/role/ritchie_credential_role policies=ritchie_server_policy period=15s
+
+# Create a key for transit (encrypt and decrypt)
+/tmp/vault/vault write -f ritchie/transit/keys/ritchie_key
 
 rm -f /tmp/vault/role-id.txt
 rm -f /tmp/vault/secret-id.txt

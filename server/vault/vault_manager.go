@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 
@@ -15,6 +16,9 @@ import (
 )
 
 const vaultPath = "ritchie/credential/%s"
+const vaultEncrypt = "ritchie/transit/encrypt/%s"
+const vaultDecrypt = "ritchie/transit/decrypt/%s"
+const ritKey = "ritchie_key"
 
 type Manager struct {
 	client *api.Client
@@ -95,6 +99,37 @@ func (vm Manager) Start(c *api.Client) {
 		}
 	}()
 
+}
+
+func (vm Manager) Encrypt(data string) (string, error) {
+	vm.setToken()
+	path := fmt.Sprintf(vaultEncrypt, ritKey)
+	body := make(map[string]interface{})
+	body["plaintext"] = base64.StdEncoding.EncodeToString([]byte(data))
+	res, err := vm.client.Logical().Write(path, body)
+	if err != nil {
+		log.Println("Vault encrypt error", err)
+		return "", err
+	}
+	return res.Data["ciphertext"].(string), nil
+}
+
+func (vm Manager) Decrypt(data string) (string, error) {
+	vm.setToken()
+	path := fmt.Sprintf(vaultDecrypt, ritKey)
+	body := make(map[string]interface{})
+	body["ciphertext"] = data
+	res, err := vm.client.Logical().Write(path, body)
+	if err != nil {
+		log.Println("Vault decrypt error", err)
+		return "", err
+	}
+	plainText, err := base64.StdEncoding.DecodeString(res.Data["plaintext"].(string))
+	if err != nil {
+		log.Println("Vault decode error", err)
+		return "", err
+	}
+	return string(plainText), nil
 }
 
 func (vm Manager) setToken() {

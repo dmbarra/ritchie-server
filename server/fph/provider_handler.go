@@ -1,4 +1,4 @@
-package ph
+package fph
 
 import (
 	"encoding/json"
@@ -41,7 +41,7 @@ func (hp Handler) TreeAllow(path, bToken, org string, repo server.Repository) (s
 	}
 	rfind := make(map[string]interface{})
 	for _, r := range roles {
-		rfind[strings.ToUpper(r.(string))] = r
+		rfind[strings.ToUpper(r)] = r
 	}
 	ft := server.Tree{}
 	ft.Version = rTree.Version
@@ -80,7 +80,7 @@ func (hp Handler) FilesFormulasAllow(path, bToken, org string, repo server.Repos
 
 	rfind := make(map[string]interface{})
 	for _, r := range roles {
-		rfind[strings.ToUpper(r.(string))] = r
+		rfind[strings.ToUpper(r)] = r
 	}
 	p := strings.Replace(path, "/formulas/", "", 1)
 	s := strings.Split(p, "/")

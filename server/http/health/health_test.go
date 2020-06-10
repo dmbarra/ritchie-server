@@ -7,9 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"testing"
+
 	"ritchie-server/server"
 	"ritchie-server/server/mock"
-	"testing"
 )
 
 func TestConfigHealth_Handler(t *testing.T) {
@@ -33,10 +34,6 @@ func TestConfigHealth_Handler(t *testing.T) {
 						Healths: healthStruct{
 							Services: []service{
 								{
-									ServiceType: "KEYCLOAK",
-									Health:      "UP",
-								},
-								{
 									ServiceType: "VAULT",
 									Health:      "UP",
 								},
@@ -46,40 +43,6 @@ func TestConfigHealth_Handler(t *testing.T) {
 					},
 					}
 
-					js, _ := json.Marshal(orgs)
-					_, err := w.Write(js)
-					if err != nil {
-						fmt.Sprintln("Error in Write ")
-						return
-					}
-				}
-			}(),
-		},
-		{
-			name:   "fail",
-			fields: fields{Config: mock.DummyConfig("not"), Path: "/health"},
-			out: func() http.HandlerFunc {
-				return func(w http.ResponseWriter, r *http.Request) {
-
-					orgs := []org{{
-						NameOrg: "zup",
-						Healths: healthStruct{
-							Services: []service{
-								{
-									ServiceType: "KEYCLOAK",
-									Health:      "DOWN",
-								},
-								{
-									ServiceType: "VAULT",
-									Health:      "UP",
-								},
-							},
-							Status: "DOWN",
-						},
-					},
-					}
-
-					w.WriteHeader(http.StatusInternalServerError)
 					js, _ := json.Marshal(orgs)
 					_, err := w.Write(js)
 					if err != nil {
