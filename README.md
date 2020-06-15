@@ -5,7 +5,7 @@
 
 ## Ritchie Server
 
-This repository contains the integrations configured for the Ritchie [Team Version](https://docs.ritchiecli.io/software-architecture-1/team-version).
+This repository contains the integrations configured for the Ritchie [Team Version](https://docs.ritchiecli.io/getting-started/software-architecture#team-version).
 
 Currently, this repository is integrated with :
 

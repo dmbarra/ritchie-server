@@ -1,6 +1,6 @@
 module ritchie-server
 
-go 1.13
+go 1.14
 
 require (
 	github.com/Nerzal/gocloak v1.0.0

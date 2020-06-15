@@ -44,13 +44,12 @@ type keycloakUser struct {
 
 func NewKeycloakProvider(config map[string]string) server.SecurityManager {
 	ttl, _ := strconv.ParseInt(config[ttl], 10, 64)
-	ttlF := time.Now().Unix() + ttl
 	kc := kConfig{
 		url:          config[url],
 		realm:        config[realm],
 		clientId:     config[clientId],
 		clientSecret: config[clientSecret],
-		ttl:          ttlF,
+		ttl:          ttl,
 	}
 	c := gocloak.NewClient(kc.url)
 	return keycloakConfig{
@@ -60,7 +59,8 @@ func NewKeycloakProvider(config map[string]string) server.SecurityManager {
 }
 
 func (k keycloakConfig) TTL() int64 {
-	return k.config.ttl
+	ttlF := time.Now().Unix() + k.config.ttl
+	return ttlF
 }
 
 func (k keycloakConfig) Login(username, password string) (server.User, server.LoginError) {

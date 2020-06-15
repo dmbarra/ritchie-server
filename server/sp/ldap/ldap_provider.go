@@ -94,7 +94,6 @@ func loadLConfig(config map[string]string) lConfig {
 	st, _ := strconv.ParseBool(config[skipTLS])
 	isv, _ := strconv.ParseBool(config[insecureSkipVerify])
 	ttl, _ := strconv.ParseInt(config[ttl], 10, 64)
-	ttlF := time.Now().Unix() + ttl
 	return lConfig{
 		base:               config[base],
 		host:               config[host],
@@ -110,7 +109,7 @@ func loadLConfig(config map[string]string) lConfig {
 		attributeUsername:  config[attributeUsername],
 		attributeName:      config[attributeName],
 		attributeEmail:     config[attributeEmail],
-		ttl:                ttlF,
+		ttl:                ttl,
 	}
 }
 
@@ -148,7 +147,8 @@ func (k ldapConfig) Login(username, password string) (server.User, server.LoginE
 }
 
 func (k ldapConfig) TTL() int64 {
-	return k.config.ttl
+	ttlF := time.Now().Unix() + k.config.ttl
+	return ttlF
 }
 
 func (le ldapError) Error() error {
