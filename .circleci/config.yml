@@ -280,7 +280,8 @@ workflows:
           filters:
             <<: *FILTERS_CHECK_CODE
           requires:
-            - horus
+#            - horus
+            - lint
       - build:
           filters:
             <<: *FILTERS_CHECK_CODE
