@@ -9,6 +9,7 @@ import (
 
 	"ritchie-server/server"
 	"ritchie-server/server/mock"
+	"ritchie-server/server/mock/httpmock"
 )
 
 func TestHandler_FindRepo(t *testing.T) {
@@ -16,8 +17,8 @@ func TestHandler_FindRepo(t *testing.T) {
 		authorization server.Constraints
 	}
 	type args struct {
-		repos         []server.Repository
-		repoName      string
+		repos    []server.Repository
+		repoName string
 	}
 	tests := []struct {
 		name   string
@@ -60,7 +61,7 @@ func TestHandler_FindRepo(t *testing.T) {
 	}
 }
 
-func TestHandler_TreeAllow(t *testing.T) {
+func TestHandler_TreeAllow_Success(t *testing.T) {
 	type fields struct {
 		authorization server.Constraints
 	}
@@ -95,6 +96,51 @@ func TestHandler_TreeAllow(t *testing.T) {
 			out:    treeRoleUser(),
 			outErr: false,
 		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			ts := httpmock.LoadServerHttp()
+			ts.Start()
+			defer ts.Close()
+			repo := httpmock.GenerateRepoWithMock(ts)
+
+			hp := NewProviderHandler(tt.fields.authorization)
+			got, err := hp.TreeAllow(tt.in.path, tt.in.bToken, tt.in.org, repo)
+			if (err != nil) != tt.outErr {
+				t.Errorf("TreeAllow() error = %v, wantErr %v", err, tt.outErr)
+				return
+			}
+			commands := make(map[string]*server.Command)
+			for _, c := range got.Commands {
+				commands[c.Parent+c.Usage] = &c
+			}
+			for _, c := range tt.out.Commands {
+				if commands[c.Parent+c.Usage] == nil {
+					t.Errorf("Commands receive in tree error gotT = %v, outT %v", got, tt.out)
+				}
+			}
+		})
+	}
+}
+
+func TestHandler_TreeAllow(t *testing.T) {
+	type fields struct {
+		authorization server.Constraints
+	}
+	type args struct {
+		path   string
+		bToken string
+		org    string
+		repo   server.Repository
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		in     args
+		out    server.Tree
+		outErr bool
+	}{
 		{
 			name: "provider error",
 			fields: fields{
@@ -263,8 +309,14 @@ func TestHandler_FilesFormulasAllow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
+			ts := httpmock.LoadServerHttp()
+			ts.Start()
+			defer ts.Close()
+			repo := httpmock.GenerateRepoWithMock(ts)
+
 			hp := NewProviderHandler(tt.fields.authorization)
-			got, err := hp.FilesFormulasAllow(tt.in.path, tt.in.bToken, tt.in.org, tt.in.repo)
+			got, err := hp.FilesFormulasAllow(tt.in.path, tt.in.bToken, tt.in.org, repo)
 			if (err != nil) != tt.outErr {
 				t.Errorf("FilesFormulasAllow() error = %v, wantErr %v", err, tt.outErr)
 				return
@@ -333,4 +385,3 @@ func treeRoleUser() server.Tree {
 	}
 	return s
 }
-

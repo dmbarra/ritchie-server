@@ -1,6 +1,8 @@
 package mock
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/hashicorp/vault/api"
@@ -32,8 +34,8 @@ func DummyConfig(args ...string) server.Config {
 }
 
 func DummyConfigMap(args ...string) map[string]*server.ConfigFile {
-	keycloakUrl := getEnv(keycloakUrl, "http://localhost:8080")
-	remoteUrl := getEnv(remoteUrl, "http://localhost:8882")
+	keycloakUrl := getEnv(keycloakUrl, "httpmock://localhost:8080")
+	remoteUrl := getEnv(remoteUrl, "httpmock://localhost:8882")
 	realm := "ritchie"
 	clientId := "user-login"
 	clientSecret := "user-login"
@@ -63,7 +65,7 @@ func DummyConfigMap(args ...string) map[string]*server.ConfigFile {
 				"credential2": {{Field: "field2", Type: "type"}},
 			},
 			CliVersionConfig: server.CliVersionConfig{
-				Url:      getEnv(cliVersionUrl, "http://localhost:8882/s3-version-mock"),
+				Url:      getEnv(cliVersionUrl, "httpmock://localhost:8882/s3-version-mock"),
 				Provider: "s3",
 			},
 			RepositoryConfig: []server.Repository{
@@ -71,8 +73,8 @@ func DummyConfigMap(args ...string) map[string]*server.ConfigFile {
 					Name:           "commons",
 					Priority:       0,
 					TreePath:       "/tree/tree.json",
-					ServerUrl:      "http://localhost:3000",
-					ReplaceRepoUrl: "http://localhost:3000/formulas",
+					ServerUrl:      "httpmock://localhost:3000",
+					ReplaceRepoUrl: "httpmock://localhost:3000/formulas",
 					Provider: server.Provider{
 						Type:   "HTTP",
 						Remote: remoteUrl,
@@ -82,8 +84,8 @@ func DummyConfigMap(args ...string) map[string]*server.ConfigFile {
 					Name:           "test1",
 					Priority:       1,
 					TreePath:       "/tree/tree-test1.json",
-					ServerUrl:      "http://localhost:3000",
-					ReplaceRepoUrl: "http://localhost:3000/formulas",
+					ServerUrl:      "httpmock://localhost:3000",
+					ReplaceRepoUrl: "httpmock://localhost:3000/formulas",
 					Provider: server.Provider{
 						Type:   "HTTP",
 						Remote: remoteUrl,
@@ -93,8 +95,8 @@ func DummyConfigMap(args ...string) map[string]*server.ConfigFile {
 					Name:           "test-repo",
 					Priority:       2,
 					TreePath:       "/tree/tree-test2.json",
-					ServerUrl:      "http://localhost:3000",
-					ReplaceRepoUrl: "http://localhost:3000/formulas",
+					ServerUrl:      "httpmock://localhost:3000",
+					ReplaceRepoUrl: "httpmock://localhost:3000/formulas",
 					Provider: server.Provider{
 						Type:   "S3",
 						Bucket: "local",
@@ -179,7 +181,7 @@ func DummyCredentialBadRequest() string {
 }
 
 func DummyRepo(args ...string) server.Repository {
-	remote := getEnv(remoteUrl, "http://localhost:8882")
+	remote := getEnv(remoteUrl, "httpmock://localhost:8882")
 	tp := "HTTP"
 	if len(args) > 0 {
 		tp = args[0]
@@ -188,8 +190,8 @@ func DummyRepo(args ...string) server.Repository {
 		Name:           "commons",
 		Priority:       0,
 		TreePath:       "/tree/tree.json",
-		ServerUrl:      "http://localhost:3000",
-		ReplaceRepoUrl: "http://localhost:3000/formulas",
+		ServerUrl:      "httpmock://localhost:3000",
+		ReplaceRepoUrl: "httpmock://localhost:3000/formulas",
 		Provider: server.Provider{
 			Type:   tp,
 			Remote: remote,
@@ -198,14 +200,14 @@ func DummyRepo(args ...string) server.Repository {
 }
 
 func DummyRepoList() []server.Repository {
-	remote := getEnv(remoteUrl, "http://localhost:8882")
+	remote := getEnv(remoteUrl, "httpmock://localhost:8882")
 	return []server.Repository{
 		{
 			Name:           "commons",
 			Priority:       0,
 			TreePath:       "/tree/tree.json",
-			ServerUrl:      "http://localhost:3000",
-			ReplaceRepoUrl: "http://localhost:3000/formulas",
+			ServerUrl:      "httpmock://localhost:3000",
+			ReplaceRepoUrl: "httpmock://localhost:3000/formulas",
 			Provider: server.Provider{
 				Type:   "HTTP",
 				Remote: remote,
@@ -215,8 +217,8 @@ func DummyRepoList() []server.Repository {
 			Name:           "test1",
 			Priority:       1,
 			TreePath:       "/tree/tree-test1.json",
-			ServerUrl:      "http://localhost:3000",
-			ReplaceRepoUrl: "http://localhost:3000/formulas",
+			ServerUrl:      "httpmock://localhost:3000",
+			ReplaceRepoUrl: "httpmock://localhost:3000/formulas",
 			Provider: server.Provider{
 				Type:   "HTTP",
 				Remote: remote,
@@ -226,8 +228,8 @@ func DummyRepoList() []server.Repository {
 			Name:           "test2",
 			Priority:       2,
 			TreePath:       "/tree/tree-test2.json",
-			ServerUrl:      "http://localhost:3000",
-			ReplaceRepoUrl: "http://localhost:3000/formulas",
+			ServerUrl:      "httpmock://localhost:3000",
+			ReplaceRepoUrl: "httpmock://localhost:3000/formulas",
 			Provider: server.Provider{
 				Type:   "HTTP",
 				Remote: remote,
@@ -358,4 +360,19 @@ func getEnv(key, def string) string {
 		return value
 	}
 	return def
+}
+
+func LoadJson(file string) []byte {
+	jsonFile, err := os.Open(file)
+	if err != nil {
+		fmt.Println("Error openning scenarios file:", err)
+	}
+	fmt.Println(jsonFile)
+	defer jsonFile.Close()
+	b, err := ioutil.ReadAll(jsonFile)
+	if err != nil {
+		fmt.Println("Error reading scenarios json:", err)
+	}
+
+	return b
 }
